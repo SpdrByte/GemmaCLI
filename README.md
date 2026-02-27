@@ -113,6 +113,8 @@ coverage, then Gemma applies session context as a correction layer, and Gemini
 synthesizes a final answer. `/littleSister` reverses the order, leading with 
 Gemma's context-awareness before Gemini expands with its knowledge base.
 
+![Dual-Model Results](assets/Dual.png)
+
 Each pipeline uses 3 API calls and displays all intermediate reasoning steps, 
 giving you full visibility into how the final answer was constructed.
 
@@ -131,19 +133,45 @@ giving you full visibility into how the final answer was constructed.
 *   **Windows Primary**: Secure key encryption utilizes Windows DPAPI, making this version incompatible with non-Windows systems without modification.
 *   **Encoding**: Some legacy PowerShell terminals may require `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` for perfect Unicode rendering.
 *   **RPM Quotas**: Free-tier API keys are limited to 2 RPM on larger models; the CLI handles this with automatic wait-timers.
+*   **Tool Limit**: There is no hard limit on tools outside of total context, but it's not recommended to activate more than 12 tools to avoid unpredictable behavior.
 
 ---
 
-## FAQ
+## FAQ Frequently Asked Questions
+
+*   Q: Is Gemma CLI an AI agent / agentic AI?
+    A: Yes. Gemma CLI is a fully agentic system. Rather than just answering questions, Gemma autonomously decides when to use tools, chains multiple tool calls together to complete complex tasks, and operates on your local system on your behalf.
+In practice this means Gemma can receive a high-level instruction like "find all PowerShell scripts modified this week and summarize what each one does" and execute it end-to-end — searching directories, reading files, and synthesizing results — without you directing each step.
 
 *   Q: Is this free?
     A: Yes. The CLI itself is open-source under AGPL-3.0. The API it uses is Google AI Studio's free tier - no credit card, no subscription. The only limit is Google's per-model rate caps, which Gemma CLI manages automatically. You will never receive a bill for using this as documented. Note: If you configure it with a Google Cloud / Vertex AI API key linked to a billing account, API calls will incur charges.
 
 *   Q: Why use Gemma when you can make Gemini calls on the same free API?
-    A: Quota isolation. On the free tier each model has its own per-model RPM and daily cap. If Gemini Flash is throttled, Gemma calls still go through - and vice versa. The dual-agent pipeline takes advantage of this automatically. No runtime authentication. Enter your API key once and it's encrypted locally with Windows DPAPI. No OAuth redirects, no browser sign-in flow mid-session — just a key that works. Backend-agnostic — on the roadmap.
+    A: Quota isolation. On the free tier each model has its own per-model RPM and daily cap. If Gemini Flash is throttled, Gemma calls still go through - and vice versa. The dual-agent pipeline takes advantage of this automatically. No runtime authentication. Enter your API key once and it's encrypted locally with Windows DPAPI. No OAuth redirects, no browser sign-in flow mid-session - just a key that works. Backend-agnostic - on the roadmap.
+
+*   Q: Can Gemma create her own tools?
+    A: Yes. Gemma can write the code for new tools — she knows the tool structure and can produce a complete, ready-to-deploy .ps1 file. Hypothetically limitless capability! (arduino-cli implementation - on the roadmap.
 
 ---
 
+## Roadmap
+
+*Arduino CLI tool
+
+*System insight tool
+
+*Self-Improvement mode
+
+*Backend Agnostic
+
+*Speech to text feature
+
+*Text to Speech feature
+
+*Image generation
+
+
+---
 ## Contributing
 
 This is an open-source project by the community, for the community. Whether you want to fix a bug, improve the UI, or contribute a new tool to `more_tools/`, pull requests are welcome!
