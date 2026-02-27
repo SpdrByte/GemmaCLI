@@ -1,0 +1,4 @@
+{
+    "/findFunc":  "searchdir -path . -recursive -search_string \"function\" -include \"*.ps1\"",
+    "/saveIdea":  "summarize what we were talking about and writefile -[subject]Idea.txt"
+}

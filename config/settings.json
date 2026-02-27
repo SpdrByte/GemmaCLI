@@ -1,0 +1,12 @@
+{
+    "color_scheme":  "default",
+    "colors":  {
+                   "input_highlight":  "DarkMagenta",
+                   "input_text":  "White",
+                   "gemma_response":  "Green",
+                   "ui_boxes":  "Cyan"
+               },
+    "disabled_tools":  [
+
+                       ]
+}
