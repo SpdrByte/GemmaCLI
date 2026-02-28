@@ -156,19 +156,19 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 ## Roadmap
 
-*Arduino CLI tool
+* Arduino CLI tool
 
-*System insight tool
+* System insight tool
 
-*Self-Improvement mode
+* Self-Improvement mode
 
-*Backend Agnostic
+* Backend Agnostic
 
-*Speech to text feature
+* Speech to text feature
 
-*Text to Speech feature
+* Text to Speech feature
 
-*Image generation
+* Image generation
 
 
 ---
