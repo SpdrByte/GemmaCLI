@@ -896,7 +896,7 @@ while ($true) {
         $script:lastApiCall = Get-Date
 
         # Trim history if approaching context window limit
-        $history = Trim-History -hist $history -tokenBudget 100000
+        $history = Trim-History -hist $history -tokenBudget 12000
 
         # Start spinner ONLY for the API call to avoid interfering with tool logic
         Start-Spinner -Label "Gemma is thinking (Esc to cancel)"
