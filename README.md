@@ -1,6 +1,6 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.45](https://img.shields.io/badge/Version-0.4x-green)
+![Version: 0.47](https://img.shields.io/badge/Version-0.4x-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
@@ -118,7 +118,17 @@ Gemma's context-awareness before Gemini expands with its knowledge base.
 Each pipeline uses 3 API calls and displays all intermediate reasoning steps, 
 giving you full visibility into how the final answer was constructed.
 
+```
+
+## Smart Trim
+
+Smart Trim manages conversation history when it approaches the context window limit. Instead of blindly dropping the oldest turns, it uses semantic embeddings to score each turn's relevance to your current query and keeps the most useful ones.How it works:
+When history exceeds the token budget, Smart Trim embeds your current message and every candidate history turn using gemini-embedding, computes cosine similarity scores, and retains the top N most relevant turns plus the last 4 turns unconditionally. Dropped turns are replaced with a notice so the model knows a trim occurred. If embedding fails for any reason (network, quota), it falls back to blind trimming — dropping oldest turns first.
+
+Access via /settings → Smart Trim.
+
 ---
+
 
 ## Reliability & Performance
 
