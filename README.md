@@ -118,7 +118,7 @@ Gemma's context-awareness before Gemini expands with its knowledge base.
 Each pipeline uses 3 API calls and displays all intermediate reasoning steps, 
 giving you full visibility into how the final answer was constructed.
 
-```
+---
 
 ## Smart Trim
 
