@@ -1,4 +1,7 @@
 {
+    "startup_delay":  1,
+    "smart_trim":  true,
+    "smart_trim_strength":  2,
     "color_scheme":  "default",
     "colors":  {
                    "input_highlight":  "DarkMagenta",
