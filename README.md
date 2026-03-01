@@ -122,8 +122,8 @@ giving you full visibility into how the final answer was constructed.
 
 ## Smart Trim
 
-Smart Trim manages conversation history when it approaches the context window limit. Instead of blindly dropping the oldest turns, it uses semantic embeddings to score each turn's relevance to your current query and keeps the most useful ones.How it works:
-When history exceeds the token budget, Smart Trim embeds your current message and every candidate history turn using gemini-embedding, computes cosine similarity scores, and retains the top N most relevant turns plus the last 4 turns unconditionally. Dropped turns are replaced with a notice so the model knows a trim occurred. If embedding fails for any reason (network, quota), it falls back to blind trimming — dropping oldest turns first.
+Smart Trim manages conversation history when it approaches the context window limit (or context is triggering TPM limit). Instead of blindly dropping the oldest turns, it uses semantic embeddings to score each turn's relevance to your current query and keeps the most useful ones. How it works:
+When history exceeds the token budget, Smart Trim embeds your current message and every candidate history turn using gemini-embedding, computes cosine similarity scores, and retains the top N most relevant turns plus the last 4 turns unconditionally. Dropped turns are replaced with a notice so the model knows a trim occurred. If embedding fails for any reason (network, quota), it falls back to blind trimming dropping oldest turns first.
 
 Access via /settings → Smart Trim.
 
