@@ -6,7 +6,7 @@
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
 ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)
 
-Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family built entirely on Google's free tier - no subscription required. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, and workflow automation. Pre 1.0 versions are experimental builds.
+Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family.  It's designed to work seamlessly with both the free and paid tiers of the Google AI Studio API, offering flexibility and scalability. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, and workflow automation.
 
 ---
 
@@ -139,18 +139,18 @@ giving you full visibility into how the final answer was constructed.
 
 ## FAQ Frequently Asked Questions
 
-*   Q: Is Gemma CLI an AI agent / agentic AI?
+*   **Q: Is Gemma CLI an AI agent / agentic AI?**
     A: Yes. Gemma CLI is a fully agentic system. Rather than just answering questions, Gemma autonomously decides when to use tools, chains multiple tool calls together to complete complex tasks, and operates on your local system on your behalf.
-In practice this means Gemma can receive a high-level instruction like "find all PowerShell scripts modified this week and summarize what each one does" and execute it end-to-end — searching directories, reading files, and synthesizing results — without you directing each step.
+In practice this means Gemma can receive a high-level instruction like "find all PowerShell scripts modified this week and summarize what each one does" and execute it end-to-end — searching directories, reading files, and synthesizing results - without you directing each step.
 
-*   Q: Is this free?
-    A: Yes. The CLI itself is open-source under AGPL-3.0. The API it uses is Google AI Studio's free tier - no credit card, no subscription. The only limit is Google's per-model rate caps, which Gemma CLI manages automatically. You will never receive a bill for using this as documented. Note: If you configure it with a Google Cloud / Vertex AI API key linked to a billing account, API calls will incur charges.
+*   **Q: Is this free?**
+    A: Yes. The CLI itself is open-source under AGPL-3.0. It's designed to work with the Google AI Studio API, which offers both a free tier and paid options. While you can use Gemma CLI entirely with the free tier, upgrading to a paid plan unlocks higher rate limits and increased usage capacity. Gemma CLI automatically manages rate limits for both tiers.
 
 *   Q: Why use Gemma when you can make Gemini calls on the same free API?
-    A: Quota isolation. On the free tier each model has its own per-model RPM and daily cap. If Gemini Flash is throttled, Gemma calls still go through - and vice versa. The dual-agent pipeline takes advantage of this automatically. No runtime authentication. Enter your API key once and it's encrypted locally with Windows DPAPI. No OAuth redirects, no browser sign-in flow mid-session - just a key that works. Backend-agnostic - on the roadmap.
+    A: Quota isolation and performance. Each model (Gemma and Gemini) has its own rate limits, whether you're using the free or paid tiers. The dual-agent pipeline leverages this to maintain responsiveness even when one model is experiencing rate limits. Paid tiers offer significantly higher rate limits for both models. Unlike Gemini, Gemma can be ran locally with no rate limiting.
 
 *   Q: Can Gemma create her own tools?
-    A: Yes. Gemma can write the code for new tools — she knows the tool structure and can produce a complete, ready-to-deploy .ps1 file. Hypothetically limitless capability! (arduino-cli implementation - on the roadmap.
+    A: Yes. Gemma can write the code for new tools - she knows the tool structure and can produce a complete, ready-to-deploy .ps1 file. Hypothetically limitless capability! (arduino-cli implementation - on the roadmap.
 
 ---
 
@@ -168,10 +168,10 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 * Text to Speech feature
 
-* Image generation
-
+* Image generation 
 
 ---
+
 ## Contributing
 
 This is an open-source project by the community, for the community. Whether you want to fix a bug, improve the UI, or contribute a new tool to `more_tools/`, pull requests are welcome!

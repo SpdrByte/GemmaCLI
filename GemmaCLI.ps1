@@ -137,7 +137,7 @@ $script:GUARDRAILS = @{
     temperature = if ($intelligence.guardrails.temperature) { [float]$intelligence.guardrails.temperature } else { 0.7 }; 
     topP = if ($intelligence.guardrails.top_p) { [float]$intelligence.guardrails.top_p } else { 0.95 } 
 }
-$CONTEXT_WINDOW = 128000
+# $CONTEXT_WINDOW = 128000
 $script:lastStatus   = @{ prompt = 0; candidate = 0; total = 0; finish = "" }
 $script:lastApiCall        = (Get-Date).AddSeconds(-10)   # main loop Gemma calls
 $script:lastApiCall_Gemini = (Get-Date).AddSeconds(-10)   # dual-agent Gemini calls
@@ -193,19 +193,36 @@ function Invoke-RpmCheck {
 
 # ====================== RETRY WRAPPER ======================
 function Invoke-GemmaApiWithRetry {
-    param($uri, $history, $gConfig)
+    param($uri, [ref]$historyRef, $gConfig)
     $delays = @(5, 30, 60)
     for ($attempt = 0; $attempt -lt 3; $attempt++) {
-        $resp = Invoke-GemmaApi -uri $uri -history $history -gConfig $gConfig
+        $resp = Invoke-GemmaApi -uri $uri -history $historyRef.Value -gConfig $gConfig
         # Pass through cancellation and non-quota errors immediately
         if ($resp.cancelled) { return $resp }
         if ($resp.apiError) {
             $isQuota = $resp.apiError -match "429|quota|RESOURCE_EXHAUSTED"
             if (-not $isQuota -or $attempt -eq 2) { return $resp }
+
+            # On first quota failure: check token count and trim if over 11K
+            Stop-Spinner
+            if ($attempt -eq 0) {
+                $tokenEst = 0
+                foreach ($turn in $historyRef.Value) {
+                    foreach ($part in $turn.parts) {
+                        if ($part.text) { $tokenEst += [int]($part.text.Length / 4) }
+                    }
+                }
+                if ($tokenEst -gt 11000) {
+                    if ($script:debugMode) { Write-Host " [Retry] Token estimate $tokenEst > 11000 - trimming before retry" -ForegroundColor DarkYellow }
+                    $historyRef.Value = Trim-History -hist $historyRef.Value -tokenBudget 11000
+                }
+            }
+
             $wait = $delays[$attempt]
             Write-Host ""
             Draw-Box @("$CRS  Quota error (attempt $($attempt+1)/3). Retrying in $wait seconds...") -Color Yellow
             Start-Sleep -Seconds $wait
+            Start-Spinner -Label "Gemma is thinking (Esc to cancel)"
             continue
         }
         return $resp
@@ -227,11 +244,123 @@ function Trim-History {
         }
         return $total
     }
+    $before  = & $calcTokens $hist
+    $dropped = 0
     # Always keep index 0 (system prompt). Trim from index 1 onward.
     while ($hist.Count -gt 2 -and (& $calcTokens $hist) -gt $tokenBudget) {
         $hist = @($hist[0]) + $hist[2..($hist.Count - 1)]
+        $dropped++
+    }
+    if ($script:debugMode -and $dropped -gt 0) {
+        $after = & $calcTokens $hist
+        Write-Host " [Trim-History] Blind trim fired: dropped $dropped turn(s). Tokens: $before -> $after (budget: $tokenBudget)" -ForegroundColor DarkYellow
     }
     return $hist
+}
+
+# ====================== SMART TRIM ======================
+function Invoke-EmbedText {
+    param([string]$text)
+    if ($text.Length -gt 8000) { $text = $text.Substring(0, 8000) }
+    $uri   = "$($script:BASE_URI_BASE)/gemini-embedding-001:embedContent?key=$($script:API_KEY)"
+    if ($script:debugMode) { Write-Host " [SmartTrim] Embed URI: $($uri.Split('?')[0])" -ForegroundColor DarkGray }
+    $body  = @{ content = @{ parts = @(@{ text = $text }) } } | ConvertTo-Json -Depth 6 -Compress
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $resp  = Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
+    return [float[]]$resp.embedding.values
+}
+
+function Get-CosineSimilarity {
+    param([float[]]$a, [float[]]$b)
+    $dot = 0.0; $magA = 0.0; $magB = 0.0
+    for ($i = 0; $i -lt $a.Length; $i++) {
+        $dot  += $a[$i] * $b[$i]
+        $magA += $a[$i] * $a[$i]
+        $magB += $b[$i] * $b[$i]
+    }
+    if ($magA -eq 0 -or $magB -eq 0) { return 0.0 }
+    return $dot / ([math]::Sqrt($magA) * [math]::Sqrt($magB))
+}
+
+function Invoke-SmartTrim {
+    param([array]$hist, [int]$tokenBudget = 11000, [string]$currentQuery = "")
+
+    $enabled  = if ($null -ne $script:Settings.smart_trim) { [bool]$script:Settings.smart_trim } else { $false }
+    $strength = if ($script:Settings.smart_trim_strength) { [int]$script:Settings.smart_trim_strength } else { 5 }
+
+    if (-not $enabled -or [string]::IsNullOrWhiteSpace($currentQuery)) {
+        return Trim-History -hist $hist -tokenBudget $tokenBudget
+    }
+
+    $keepCount = if     ($strength -le 2) { 8 }
+                elseif ($strength -le 4) { 6 }
+                elseif ($strength -le 6) { 4 }
+                elseif ($strength -le 8) { 2 }
+                else                     { 1 }
+
+    try {
+
+        # Check token estimate first — only trim if actually over budget
+        $tokenEst = 0
+        foreach ($turn in $hist) {
+            foreach ($part in $turn.parts) {
+                if ($part.text) { $tokenEst += [int]($part.text.Length / 4) }
+            }
+        }
+        if ($tokenEst -le $tokenBudget) {
+            if ($script:debugMode) { Write-Host " [SmartTrim] Tokens $tokenEst under budget $tokenBudget - skipping" -ForegroundColor DarkGray }
+            return $hist
+        }
+
+        $locked     = @($hist[0])
+        $tail       = if ($hist.Count -gt 5) { $hist[($hist.Count - 4)..($hist.Count - 1)] } else { $hist[1..($hist.Count - 1)] }
+        $candidates = if ($hist.Count -gt 5) { $hist[1..($hist.Count - 5)] } else { @() }
+
+        if ($candidates.Count -eq 0) {
+            return Trim-History -hist $hist -tokenBudget $tokenBudget
+        }
+
+        if ($script:debugMode) { Write-Host " [SmartTrim] Embedding $($candidates.Count) candidate turns (strength $strength, keeping top $keepCount)..." -ForegroundColor DarkGray }
+
+        $queryVec = Invoke-EmbedText -text $currentQuery
+
+        $scored = @()
+        foreach ($turn in $candidates) {
+            $text = ($turn.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
+            $vec  = Invoke-EmbedText -text $text
+            $sim  = Get-CosineSimilarity -a $queryVec -b $vec
+            $scored += [PSCustomObject]@{ turn = $turn; score = $sim }
+        }
+
+        $kept    = @(($scored | Sort-Object score -Descending | Select-Object -First $keepCount).turn)
+
+        $dropped = $candidates.Count - $kept.Count
+        $trimNotice = @{
+            role  = "user"
+            parts = @(@{ text = "SYSTEM NOTICE: Your session history was just trimmed. You retained $($kept.Count) most relevant turns from earlier in the conversation plus the last 4 turns. $dropped turns removed." })
+        }
+        $newHist = $locked + $kept + @($trimNotice) + $tail
+
+        if ($script:debugMode) {
+            Write-Host " [SmartTrim] Complete. Kept $($kept.Count), dropped $dropped candidate turns" -ForegroundColor DarkGray
+            Write-Host " [SmartTrim] --- KEPT TURNS ---" -ForegroundColor Green
+            foreach ($s in ($scored | Sort-Object score -Descending | Select-Object -First $keepCount)) {
+                $preview = ($s.turn.parts[0].text -replace '\s+',' ').Substring(0, [math]::Min(60, $s.turn.parts[0].text.Length))
+                Write-Host "  [KEEP] score:$([math]::Round($s.score,3))  $preview..." -ForegroundColor Green
+            }
+            Write-Host " [SmartTrim] --- DROPPED TURNS ---" -ForegroundColor DarkYellow
+            foreach ($s in ($scored | Sort-Object score -Descending | Select-Object -Skip $keepCount)) {
+                $preview = ($s.turn.parts[0].text -replace '\s+',' ').Substring(0, [math]::Min(60, $s.turn.parts[0].text.Length))
+                Write-Host "  [DROP] score:$([math]::Round($s.score,3))  $preview..." -ForegroundColor DarkYellow
+            }
+        }
+
+        return $newHist
+
+    } catch {
+        if ($script:debugMode) { Write-Host " [SmartTrim] Embedding failed, falling back to Trim-History: $($_.Exception.Message)" -ForegroundColor DarkYellow }
+        return Trim-History -hist $hist -tokenBudget $tokenBudget
+    }
 }
 
 # ====================== API CALL LOGGER ======================
@@ -325,10 +454,13 @@ function Invoke-DualAgent {
         Write-Host ""
         Draw-Box @("$BUL  bigBrother mode  $BUL  Gemini $ARR Gemma $ARR Gemini") -Color Cyan
 
-        # Round 1: Gemini answers blind — no session context
+        # Round 1: Gemini answers with limited context
+
+        $lastTurn = ($history | Select-Object -Last 3 | Where-Object { $_.role -ne "user" -or $_.parts[0].text -notmatch '^/bigBrother' } | ForEach-Object { $_.parts[0].text }) -join "`n"
+
         $geminiAnswer = Invoke-SingleTurnApi `
             -uri $geminiUri `
-            -prompt $query `
+            -prompt "You are Gemini, Gemma's brother, an AI assistant participating in a dual-agent pipeline with Gemma. You are being consulted for your broad knowledge on this query.`nRECENT CONTEXT:`n$lastTurn`nQUERY: $query" `
             -spinnerLabel "Gemini Flash answering (Round 1)..." `
             -backend "gemini"
 
@@ -541,7 +673,8 @@ if ($scheme -eq "alternative") {
 }
 
 # ====================== SPLASH ======================
-Start-Sleep -Seconds 2  # temporary — add in settings
+$startupDelay = if ($script:Settings.startup_delay) { [int]$script:Settings.startup_delay } else { 0 }
+if ($startupDelay -gt 0) { Start-Sleep -Seconds $startupDelay }
 Clear-Host
 Write-Host ""
 Write-Host "  .oooooo.   oooooooooooo ooo        ooooo ooo        ooooo      .o.       " -ForegroundColor Magenta
@@ -560,7 +693,7 @@ $helpLines = @(
     "/multiline         $ARR Multiline mode - end with /end",
     "/model [id]        $ARR Switch model / pass id directly",
     "/tools             $ARR Show available tools",
-    "/settings          $ARR Manage tools and colors",
+    "/settings          $ARR Manage system settings",
     "/customCommand     $ARR List/Create your custom commands",
     "/bigBrother [q]    $ARR Dual model pipeline, Gemini > Gemma > Gemini",
     "/littleSister [q]  $ARR Dual model pipeline, Gemma > Gemini > Gemma",
@@ -569,7 +702,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.4.5 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.4.6 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -630,7 +763,7 @@ while ($true) {
 
      if ($userInput -eq "/multiline") {
         $pastelines =@()
-        Write-Host "Multiline mode - end with /end on its own line]" -ForegroundColor DarkGray
+        Write-Host "Multiline mode - [end with /end on its own line]" -ForegroundColor DarkGray
         while ($true) {
             $pasteline = Read-Host
             if ($pasteline -eq "/end") { break }
@@ -727,7 +860,7 @@ while ($true) {
     }
 
     if ($userInput -eq "/settings") {
-        $settingsChoice = Show-ArrowMenu -Options @("Colors", "Tools", "Exit") -Title "Settings"
+        $settingsChoice = Show-ArrowMenu -Options @("Colors", "Tools", "Smart Trim", "Start Delay", "Exit") -Title "Settings"
         switch ($settingsChoice) {
             0 { 
                 $schemeOptions = @("Default Scheme", "Alternative Scheme")
@@ -766,6 +899,53 @@ while ($true) {
                             Draw-Box @("Tool '$($selectedTool.Name)' has been enabled.") -Color Yellow
                         }
                     }
+                }
+            }
+            2 {
+                $currentEnabled  = if ($null -ne $script:Settings.smart_trim) { [bool]$script:Settings.smart_trim } else { $false }
+                $currentStrength = if ($script:Settings.smart_trim_strength) { [int]$script:Settings.smart_trim_strength } else { 5 }
+                $trimState       = if ($currentEnabled) { "Enabled" } else { "Disabled" }
+
+                $trimChoice = Show-ArrowMenu -Options @("Toggle Smart Trim ($trimState)", "Set Strength ($currentStrength)") -Title "Smart Trim Settings"
+
+                if ($trimChoice -eq 0) {
+                    $script:Settings.smart_trim = -not $currentEnabled
+                    $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
+                    $newState = if ($script:Settings.smart_trim) { "Enabled" } else { "Disabled" }
+                    Draw-Box @("$CHK  Smart Trim $newState") -Color Magenta
+                }
+                elseif ($trimChoice -eq 1) {
+                    $strengthOptions = @(
+                        "1  - Conservative  (keep most, minimal token savings)",
+                        "2  - Conservative+",
+                        "3  - Balanced-",
+                        "4  - Balanced",
+                        "5  - Balanced+  (recommended)",
+                        "6  - Aggressive-",
+                        "7  - Aggressive",
+                        "8  - Aggressive+",
+                        "9  - Maximum-",
+                        "10 - Maximum  (keep least, most token savings)"
+                    )
+                    $strengthIdx    = [math]::Max(0, $currentStrength - 1)
+                    $strengthChoice = Show-ArrowMenu -Options $strengthOptions -Title "Smart Trim Strength" -Default $strengthIdx
+                    if ($strengthChoice -ge 0) {
+                        $script:Settings.smart_trim_strength = $strengthChoice + 1
+                        $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
+                        Draw-Box @("$CHK  Smart Trim strength set to $($script:Settings.smart_trim_strength)") -Color Magenta
+                    }
+                }
+            }
+            3 {
+                $currentDelay = if ($script:Settings.startup_delay) { [int]$script:Settings.startup_delay } else { 0 }
+                $delayOptions = @("0s  - No delay", "1s", "2s", "3s", "5s")
+                $delayValues  = @(0, 1, 2, 3, 5)
+                $currentIdx   = [math]::Max(0, $delayValues.IndexOf($currentDelay))
+                $delayChoice  = Show-ArrowMenu -Options $delayOptions -Title "Startup Delay  $BUL  current: $($currentDelay)s" -Default $currentIdx
+                if ($delayChoice -ge 0) {
+                    $script:Settings.startup_delay = $delayValues[$delayChoice]
+                    $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
+                    Draw-Box @("$CHK  Startup delay set to $($delayValues[$delayChoice])s") -Color Magenta
                 }
             }
         }
@@ -828,7 +1008,7 @@ while ($true) {
                 -Default $currentIdx
             if ($choice -ge 0) {
                 $script:MODEL = $script:MODEL_REGISTRY[$keys[$choice]].id
-                $currentUri   = Get-ApiUri
+                # SAFE TO REMOVE? $currentUri   = Get-ApiUri
                 $history = @(@{ role = "user"; parts = @(@{ text = (Get-SystemPrompt) }) })
                 Draw-Box @("$CHK  Model switched to: $script:MODEL") -Color Magenta
             } else {
@@ -896,12 +1076,12 @@ while ($true) {
         $script:lastApiCall = Get-Date
 
         # Trim history if approaching context window limit
-        $history = Trim-History -hist $history -tokenBudget 12000
+        $history = Invoke-SmartTrim -hist $history -tokenBudget 11000 -currentQuery $userInput
 
         # Start spinner ONLY for the API call to avoid interfering with tool logic
         Start-Spinner -Label "Gemma is thinking (Esc to cancel)"
 
-        $resp = Invoke-GemmaApiWithRetry -uri $currentUri -history $history -gConfig $script:GUARDRAILS
+        $resp = Invoke-GemmaApiWithRetry -uri $currentUri -historyRef ([ref]$history) -gConfig $script:GUARDRAILS
 
         Stop-Spinner 
 
@@ -938,29 +1118,39 @@ while ($true) {
 
         $jsonStr = $null
 
-        # Format 1: Official XML style <tool_call>{...}</tool_call>
-        if ($modelText -match '(?s)<tool_call>\s*(\{.*?\})\s*</tool_call>') {
+        # Format 1: Official XML style <tool_call>{...}</tool_call> — skip if wrapped in code_block tags
+        if ($modelText -match '(?s)<tool_call>\s*(\{.*?\})\s*</tool_call>' -and $modelText -notmatch '<code_block>') {
             $jsonStr = $matches[1]
         }
-        # Format 2: Markdown style ```tool_code\n{...}\n```
-        elseif ($modelText -match '(?s)```tool_code\s*(\{.*?\})\s*```') {
+        # Format 2: Markdown style ```tool_code\n{...}\n``` — skip if wrapped in outer codefence or code_block tags
+        elseif ($modelText -match '(?s)```tool_code\s*(\{.*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```tool_code' -and $modelText -notmatch '<code_block>') {
             $jsonStr = $matches[1]
         }
-        # Format 3: Plain ```json\n{...}\n``` with a name field
-        elseif ($modelText -match '(?s)```json\s*(\{.*?""name"".*?\})\s*```') {
+        # Format 3: Codefence style ```tool_call\n{...}\n``` — skip if wrapped in outer codefence or code_block tags
+        elseif ($modelText -match '(?s)```tool_call\s*(\{.*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```tool_call' -and $modelText -notmatch '<code_block>') {
             $jsonStr = $matches[1]
         }
-        # Format 4: Bare function call style tool_name({"param": "value"})
-        elseif ($modelText -match '(?s)(\w+)\(\s*(\{.*?\})\s*\)') {
+        # Format 4: Plain ```json\n{...}\n``` with a name field — skip if wrapped in outer codefence or code_block tags
+        elseif ($modelText -match '(?s)```json\s*(\{.*?""name"".*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```json' -and $modelText -notmatch '<code_block>') {
+            $jsonStr = $matches[1]
+        }
+        # Format 5: Bare function call style tool_name({"param": "value"}) — skip if wrapped in code_block tags
+        elseif ($modelText -match '(?s)(\w+)\(\s*(\{.*?\})\s*\)' -and $modelText -notmatch '<code_block>') {
             $jsonStr = "{`"name`": `"$($matches[1])`", `"parameters`": $($matches[2])}"
         }
 
-        if ($jsonStr) {
-            if ($script:debugMode) {
-                Write-Host "`n[DEBUG] Raw Tool Call JSON: $jsonStr" -ForegroundColor Yellow
-            }
-			try {
-                $call  = $jsonStr | ConvertFrom-Json
+         if ($jsonStr) {
+         # Bulletproof sanitization: handles escaped quotes AND escaped backslashes
+         $jsonStr = [System.Text.RegularExpressions.Regex]::Replace($jsonStr, '(?s)("(?:[^"\\]|\\.)*")', {
+             param($m) $m.Value -replace "\r\n|\r|\n", '\n'
+         })
+    
+         if ($script:debugMode) {
+            Write-Host "`n[DEBUG] Sanitized Tool Call JSON: $jsonStr" -ForegroundColor Yellow
+         }
+   
+         try {
+            $call = $jsonStr | ConvertFrom-Json
                 $params = ConvertTo-Hashtable -Object $call.parameters
                 $tool = $script:TOOLS[$call.name]
                 if (-not $tool) {
@@ -1011,7 +1201,6 @@ while ($true) {
                             return "ERROR: Tool '$toolName' is missing its 'Execute' scriptblock."
                         }
                         # Invoke the tool's execution block with the parameters
-                        # SLATE FOR REMOVAL $params | Add-Member -NotePropertyName "_toolsDir" -NotePropertyValue $toolsDir -Force
                         return & $ToolMeta.Execute $params
                     } catch {
                         return "ERROR: Exception while executing tool '$toolName': $($_.Exception.Message) | StackTrace: $($_.ScriptStackTrace)"
@@ -1078,7 +1267,7 @@ while ($true) {
                     }
                 } else {
                     $history += @{ role = "model"; parts = @(@{ text = $modelText }) }
-                    $history += @{ role = "user"; parts = @(@{ text = "TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on this result. Do not call this tool again." }) }
+                    $history += @{ role = "user"; parts = @(@{ text = "TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on context. Do not call this tool again immediately." }) }
                 }
 
                 Write-ApiLog -toolName $call.name
@@ -1089,14 +1278,27 @@ while ($true) {
                 break
             }
 
-        } else {
+       } else {
             if ($script:debugMode) {
                 Write-Host "`n[DEBUG] Raw Model Text: $modelText" -ForegroundColor Yellow
             }
             $history += @{ role = "model"; parts = @(@{ text = $modelText }) }
             Write-Host ""
             Write-Host " Gemma: " -NoNewline -ForegroundColor $script:Colors.gemma_response
-            Write-Host $modelText
+            Write-Host ""
+           $segments = [System.Text.RegularExpressions.Regex]::Split($modelText, '(?s)(<code_block>.*?</code_block>)')
+            foreach ($seg in $segments) {
+                if ($seg -match '(?s)<code_block>(.*?)</code_block>') {
+                    $code = $matches[1].Trim()
+                    Write-Host ""
+                    foreach ($codeLine in $code -split "`n") {
+                        Write-Host "  $codeLine" -ForegroundColor White -BackgroundColor DarkGray
+                    }
+                    Write-Host ""
+                } else {
+                     if ($seg.Trim()) { Write-Host $seg }
+                }
+            }
             Write-Host ""
             break
         }
