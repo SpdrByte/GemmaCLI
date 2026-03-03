@@ -1,6 +1,6 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.5.0](https://img.shields.io/badge/Version-0.4x-green)
+![Version: 0.5.0](https://img.shields.io/badge/Version-0.5x-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
@@ -195,3 +195,4 @@ This is an open-source project by the community, for the community. Whether you 
 ---
 
 **License**: Distributed under the AGPL-3.0 License. See `LICENSE` for more information.
+
