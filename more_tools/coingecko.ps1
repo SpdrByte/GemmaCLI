@@ -1,5 +1,7 @@
-# more_tools/coingecko.ps1
-# Version 0.1a experimental
+# ===============================================
+# GemmaCLI Tool - coingecko.ps1 v0.1.1
+# Responsibility: Fetch coin data
+# ===============================================
 
 function Invoke-CoinGeckoTool {
     param([string]$coin)
@@ -29,4 +31,15 @@ $ToolMeta = @{
     Example     = "<tool_call>{ ""name"": ""coingecko"", ""parameters"": { ""coin"": ""bitcoin"" } }</tool_call>"
     FormatLabel = { param($params) "coingecko -> $($params.coin)" }
     Execute     = { param($params) Invoke-CoinGeckoTool @params }
+    ToolUseGuidanceMajor = @"
+        - When to use 'coingecko': Use this tool to retrieve the current price of a specific cryptocurrency in USD. This is useful for answering questions about crypto market values.
+        - Important parameters for 'coingecko': 
+            - `coin`: Provide the exact ID of the cryptocurrency (e.g., 'bitcoin', 'ethereum'). It must be a valid CoinGecko ID.
+        - Error Handling: If the tool returns an error or "Could not retrieve price", it likely means the provided `coin` ID is incorrect or not supported. Inform the user.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Get cryptocurrency prices.
+        - Basic use: Provide the exact name of the `coin` (e.g., 'bitcoin').
+        - Important: The coin name must be correct for the tool to work.
+"@
 }

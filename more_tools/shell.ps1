@@ -1,4 +1,4 @@
-# more_tools/shell.ps1
+# GemmaCLI Tool - shell.ps1 v0.1
 # WARNING 0.1a experimental (not recommended to enable this tool outside of a test environment)
 
 function Invoke-ShellTool {
@@ -40,4 +40,19 @@ $ToolMeta = @{
     Example     = "<tool_call>{ ""name"": ""shell"", ""parameters"": { ""command"": ""dir"" } }</tool_call>"
     FormatLabel = { param($params) "shell -> $($params.command)" }
     Execute     = { param($params) Invoke-ShellTool @params }
+    ToolUseGuidanceMajor = @"
+        - When to use 'shell': Use this tool to execute system commands directly via `cmd.exe`. This tool should be used with extreme caution and only when absolutely necessary for tasks that cannot be accomplished by other, safer tools.
+        - Important parameters for 'shell': 
+            - `command`: The exact shell command to execute. Always double-check the command for correctness and potential side effects before execution.
+        - **CRITICAL CAUTION**: This tool interacts directly with the user's operating system. Malformed or malicious commands can cause irreversible damage to the system or data.
+        - Safety Filter: Be aware that a safety filter is in place to block obviously destructive patterns (e.g., `Remove-Item -Recurse C:\`). Do NOT attempt to bypass this filter.
+        - User Confirmation: Due to its destructive potential, always seek explicit user confirmation before executing any command that modifies the file system or system configuration.
+        - Debugging: If a command fails, inspect the error message carefully.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Run system commands.
+        - Basic use: Provide the `command` to execute.
+        - **WARNING**: This tool can damage the system. Use with extreme caution.
+        - Always ask the user before running commands that change files.
+"@
 }

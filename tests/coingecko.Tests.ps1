@@ -2,7 +2,12 @@
 
 Describe "CoinGecko Tool" {
     BeforeAll {
-        . (Join-Path $PSScriptRoot "../more_tools/coingecko.ps1")
+        $toolPath = Join-Path $PSScriptRoot "../tools/coingecko.ps1"
+        if (-not (Test-Path $toolPath)) {
+            $toolPath = Join-Path $PSScriptRoot "../more_tools/coingecko.ps1"
+        }
+        $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
+        Invoke-Expression $content
     }
 
     It "should return a price for a valid cryptocurrency" {

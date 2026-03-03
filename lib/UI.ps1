@@ -187,7 +187,7 @@ function Stop-Spinner {
         } catch { }
         $script:spinnerPS = $null
     }
-    # Clear the spinner line fully
+    # Clear the spinner line fully and reset cursor to start of line
     [Console]::Write("`r" + (" " * 60) + "`r")
     try { [Console]::CursorVisible = $true } catch {}
 }

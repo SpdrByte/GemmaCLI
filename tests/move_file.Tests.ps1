@@ -2,7 +2,12 @@
 
 Describe "Move File Tool" {
     BeforeAll {
-        . (Join-Path $PSScriptRoot "../more_tools/move_file.ps1")
+        $toolPath = Join-Path $PSScriptRoot "../tools/move_file.ps1"
+        if (-not (Test-Path $toolPath)) {
+            $toolPath = Join-Path $PSScriptRoot "../more_tools/move_file.ps1"
+        }
+        $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
+        Invoke-Expression $content
         $script:sourceFile = New-TemporaryFile
         $script:destPath = Join-Path $env:TEMP "moved_test_file.tmp"
     }

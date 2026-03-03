@@ -1,6 +1,8 @@
-# tools/view_image.ps1
+# ===============================================
+# GemmaCLI Tool - view_image.ps1 v0.1.1
 # Responsibility: Encodes an image to base64 and returns it in a format
-# that can be injected into the LLM's multimodal history.
+# that can be injected into the LLM's multimodal history
+# ===============================================
 
 function Invoke-ViewImageTool {
     param(
@@ -43,6 +45,19 @@ $ToolMeta = @{
         prompt    = "string - the user's question or instruction about the image"
     }
     Example     = "<tool_call>{ ""name"": ""view_image"", ""parameters"": { ""file_path"": ""./images/chart.png"", ""prompt"": ""What does this chart show?"" } }</tool_call>"
-    FormatLabel = { param($params) "view_image -> $($params.file_path)" }
+    FormatLabel = { param($params) "🖼️ View Image -> $($params.file_path)" }
     Execute     = { param($params) Invoke-ViewImageTool -file_path $params.file_path -prompt $params.prompt }
+    ToolUseGuidanceMajor = @"
+        - When to use 'view_image': Use this tool to enable multimodal analysis of a local image file (PNG, JPG, GIF, WEBP). This is the only way for the LLM to 'see' and interpret image content. Use it when the user asks questions or provides instructions related to an image.
+        - Important parameters for 'view_image': 
+            - `file_path`: The full path to the image file. Verify its existence using `searchdir` before attempting to view it.
+            - `prompt`: A concise textual description of the user's question or instruction about the image. This prompt will be sent alongside the image data to the LLM.
+        - Output: The tool encodes the image to base64 and returns it in a special `IMAGE_DATA` format, which is then injected into the LLM's multimodal history.
+        - Error Handling: If the file is not found or cannot be encoded, an error message will be returned.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Show an image to the AI.
+        - Basic use: Provide the `file_path` of the image and a `prompt` (question) about it.
+        - Important: The AI needs this tool to 'see' images.
+"@
 }

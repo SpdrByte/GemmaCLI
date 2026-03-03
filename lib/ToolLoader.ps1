@@ -14,42 +14,64 @@ function Get-ToolInstructions {
 
     Get-ChildItem -Path $toolsDir -Filter "*.ps1" | ForEach-Object {
         try {
-            . $_.FullName
+            $content = Get-Content -Path $_.FullName -Raw -Encoding UTF8
+            # Execute the tool script to populate $ToolMeta
+            # This is a safe execution as the tool scripts are part of the project
+            # and expected to define $ToolMeta
+            Invoke-Expression -Command $content
+            
             if ($ToolMeta) {
                 $script:TOOLS[$ToolMeta.Name] = $ToolMeta
                 Write-Host "  [OK] Loaded tool: $($ToolMeta.Name)" -ForegroundColor Green
             }
         } catch {
-            Write-Host "  [FAIL] Error loading tool $($_.Name): $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  [FAIL] Error loading tool $($_.FullName): $($_.Exception.Message)" -ForegroundColor Red
         } finally {
-            $ToolMeta = $null
+            $ToolMeta = $null # Clear $ToolMeta for the next tool script
         }
     }
-    Write-Host "Loaded $($script:TOOLS.Count) tool(s)."
+    # Write-Host "Loaded $($script:TOOLS.Count) tool(s)." # Commenting out for cleaner output
+
+    # Define model tiers for guidance
+    $majorModels = @("gemma-3-27b-it", "gemma-3-12b-it")
+    $minorModels = @("gemma-3-4b-it", "gemma-3n-e4b-it", "gemma-3n-e2b-it", "gemma-3-1b-it")
+
+    # Determine if the current model is a major or minor model
+    $isMajorModel = $majorModels -contains $Model
+    $isMinorModel = $minorModels -contains $Model
 
     # Dynamic Prompt Generation
-    $toolLimit = $ToolLimits[$Model]
+    $toolLimit = if ($null -ne $ToolLimits[$Model]) { $ToolLimits[$Model] } else { 0 }
     $toolInstructions = @()
-    $toolsToLoad = $script:TOOLS.Values | Select-Object -First $toolLimit
+    # Filter tools based on the model's tool limit and sort by name for consistent output
+    $toolsToLoad = $script:TOOLS.Values | Where-Object { $_.Name -ne $null } | Sort-Object Name | Select-Object -First $toolLimit
 
     foreach ($tool in $toolsToLoad) {
         $instruction = ""
-        if ($Model -eq "gemma-3-27b-it") {
-            $instruction += "### Tool: $($tool.Name)`n"
-            $instruction += "**Behavior:** $($tool.Behavior)`n"
-            $instruction += "**Description:** $($tool.Description)`n"
+        $instruction += "### Tool: $($tool.Name)`n"
+        $instruction += "**Description:** $($tool.Description)`n"
+        
+        # Add Parameters for all models
+        if ($tool.Parameters) {
             $instruction += "**Parameters:**`n"
             $tool.Parameters.GetEnumerator() | ForEach-Object { $instruction += "  - $($_.Name): $($_.Value)`n" }
-            $instruction += "**Example:** $($tool.Example)`n`n"
-        } elseif ($Model -eq "gemma-3-12b-it") {
-            $instruction += "### Tool: $($tool.Name)`n"
-            $instruction += "**Description:** $($tool.Description)`n"
-            $instruction += "**Parameters:**`n"
-            $tool.Parameters.GetEnumerator() | ForEach-Object { $instruction += "  - $($_.Name): $($_.Value)`n" }
-            $instruction += "`n"
-        } else {
-             $instruction += "- **$($tool.Name):** $($tool.Description)`n"
         }
+
+        # Add Example for all models (if available)
+        if ($tool.Example) {
+            $instruction += "**Example:** $($tool.Example)`n"
+        }
+
+        # Add guidance based on model tier
+        if ($isMajorModel -and $tool.ToolUseGuidanceMajor) {
+            $instruction += "**Usage Guidance (Detailed):**`n"
+            $instruction += "$($tool.ToolUseGuidanceMajor)`n"
+        } elseif ($isMinorModel -and $tool.ToolUseGuidanceMinor) {
+            $instruction += "**Usage Guidance (Simplified):**`n"
+            $instruction += "$($tool.ToolUseGuidanceMinor)`n"
+        }
+        
+        $instruction += "`n" # Add an extra newline for separation between tools
         $toolInstructions += $instruction
     }
 

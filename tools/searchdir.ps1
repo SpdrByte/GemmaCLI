@@ -1,5 +1,7 @@
-# tools/searchdir.ps1 v0.11
+# ===============================================
+# GemmaCLI Tool - searchdir.ps1 v0.1.2
 # Responsibility: Searches a directory for files/folders matching a pattern.
+# ===============================================
 
 function Invoke-SearchDirTool {
     param(
@@ -51,6 +53,18 @@ $ToolMeta = @{
         exclude       = "string - wildcard pattern to exclude from the results (e.g., '*.log')"
     }
     Example     = "<tool_call>{ ""name"": ""searchdir"", ""parameters"": { ""dir_path"": ""."", ""search_string"": ""*.md"", ""recursive"": true } }</tool_call>"
-    FormatLabel = { param($params) "searchdir -> $($params.search_string) in $($params.dir_path)" }
+    FormatLabel = { param($params) "🔍 Searchdir -> $($params.search_string) in $($params.dir_path)" }
     Execute     = { param($params) Invoke-SearchDirTool @params }
+    ToolUseGuidanceMajor = @"
+        - When to use 'searchdir': Use this tool to verify the existence of files or directories before attempting to 'readfile' or 'view_image', especially if the user has not provided an explicit path. This helps adhere to the 'Strict Evidence Policy'.
+        - Important parameters for 'searchdir': 
+            - `dir_path`: Always specify a directory path. Defaults to the current directory ('.').
+            - `search_string`: This parameter MUST ONLY be the filename or a wildcard pattern (e.g., '*.txt', 'config*'). NEVER include a directory path or backslashes within `search_string`. Put the directory part in `dir_path` instead.
+        - Post-search action: If 'searchdir' does not return the expected file or directory, always ask the user for the correct path rather than guessing or proceeding with a non-existent path.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Find files or folders by name.
+        - Basic use: Provide the directory (`dir_path`) and the exact file name (`search_string`).
+        - Important: If the tool doesn't find the file, ask the user for help.
+"@
 }

@@ -2,7 +2,12 @@
 
 Describe "Shell Tool" {
     BeforeAll {
-        . (Join-Path $PSScriptRoot "../more_tools/shell.ps1")
+        $toolPath = Join-Path $PSScriptRoot "../tools/shell.ps1"
+        if (-not (Test-Path $toolPath)) {
+            $toolPath = Join-Path $PSScriptRoot "../more_tools/shell.ps1"
+        }
+        $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
+        Invoke-Expression $content
     }
 
     It "should execute a simple command and return the output" {

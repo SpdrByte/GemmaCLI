@@ -1,6 +1,6 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.47](https://img.shields.io/badge/Version-0.4x-green)
+![Version: 0.5.0](https://img.shields.io/badge/Version-0.4x-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
@@ -134,6 +134,7 @@ Access via /settings → Smart Trim.
 
 *   **Context Management**: Automatic history trimming and token budgeting (128k context window support) ensure conversations never crash due to size.
 *   **Rate Limit Protection**: Built-in RPM tracking and smart retry wrappers handle Google AI Studio quotas (Free and Pay-as-you-go tiers) gracefully.
+*   **API Orchestration**: Centralized API calls through `lib/Api.ps1` for improved reliability and performance.
 *   **Asynchronous Jobs**: Tool calls run in isolated background jobs with user-controlled "Allow/Deny" permissions and manual "Esc" cancellation.
 
 ---

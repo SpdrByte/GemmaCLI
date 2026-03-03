@@ -1,5 +1,7 @@
-# tools/create_directory.ps1
+# ===============================================
+# GemmaCLI Tool - create_directory.ps1 v0.1.1
 # Responsibility: Creates a new directory (and parents if needed) at the specified path.
+# ===============================================
 
 function Invoke-CreateDirectoryTool {
     param(
@@ -41,10 +43,21 @@ $ToolMeta = @{
     Parameters  = @{
         dir_path = "string - absolute or relative Windows path to the directory to create, e.g. '.\newfolder' or 'C:\Users\kevin\Documents\project'"
     }
-    Example     = "<tool_call>{ ""name"": ""create_directory"", ""parameters"": { ""dir_path"": ""./new_folder"" } }</tool_call>"
+    Example     = "<tool_call>{ ""name"": ""📁 Create_directory"", ""parameters"": { ""dir_path"": ""./new_folder"" } }</tool_call>"
     FormatLabel = { param($params) "create_directory -> $($params.dir_path)" }
     Execute     = {
         param($params)
         Invoke-CreateDirectoryTool -dir_path $params.dir_path
     }
+    ToolUseGuidanceMajor = @"
+        - When to use 'create_directory': Use this tool to establish new directories in the file system. This is crucial before attempting to write files to a location that may not yet exist, or for organizing project structures.
+        - Important parameters for 'create_directory': 
+            - `dir_path`: Provide the desired path for the new directory. This tool will automatically create any necessary parent directories.
+        - Error Handling: If a directory or file already exists at the specified `dir_path`, the tool will return an error. Handle this by informing the user or choosing an alternative path.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Make a new folder.
+        - Basic use: Give the full path for the new folder (`dir_path`).
+        - Important: The tool will not create a folder if one already exists with the same name.
+"@
 }

@@ -2,15 +2,23 @@
 
 Describe "HTTP Get Tool" {
     BeforeAll {
-        . (Join-Path $PSScriptRoot "../more_tools/http_get.ps1")
+        $toolPath = Join-Path $PSScriptRoot "../tools/http_get.ps1"
+        if (-not (Test-Path $toolPath)) {
+            $toolPath = Join-Path $PSScriptRoot "../more_tools/http_get.ps1"
+        }
+        $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
+        Invoke-Expression $content
     }
 
     It "should return content from a valid URL" {
-        $result = Invoke-HttpGetTool -url "https://httpbin.org/get"
-        $result | Should Not BeNullOrEmpty
+        Mock Invoke-RestMethod { return "Mock Response" }
+        $result = Invoke-HttpGetTool -url "http://example.com"
+        $result | Should Be "Mock Response"
     }
 
     It "should return an error for an invalid URL" {
-        { Invoke-HttpGetTool -url "http://invalid-url-that-does-not-exist-abc.xyz" } | Should Throw
+        Mock Invoke-RestMethod { throw "Invalid URL" }
+        $result = Invoke-HttpGetTool -url "http://invalid-url"
+        $result | Should Match "ERROR: Failed to get content from URL"
     }
 }

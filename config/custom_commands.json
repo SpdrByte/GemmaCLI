@@ -1,4 +1,5 @@
 {
+    "/saveIdea":  "summarize what we were talking about and writefile -[subject]Idea.txt",
     "/findFunc":  "searchdir -path . -recursive -search_string \"function\" -include \"*.ps1\"",
-    "/saveIdea":  "summarize what we were talking about and writefile -[subject]Idea.txt"
+    "/wordOfDay":  "use http_get tool to fethch https://www.merriam-webster.com/word-of-the-day and tell user the word of the day"
 }

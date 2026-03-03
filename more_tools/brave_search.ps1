@@ -1,5 +1,7 @@
-# more_tools/brave_search.ps1
-# Version 0.1a exoerimental
+# ===============================================
+# GemmaCLI Tool - brave_search.ps1 v0.1.1
+# Responsibility: Web search using Brave search engine
+# ===============================================
 
 function Invoke-BraveSearchTool {
     param([string]$query)
@@ -41,6 +43,18 @@ $ToolMeta = @{
         query = "string - the search query"
     }
     Example     = "<tool_call>{ ""name"": ""brave_search"", ""parameters"": { ""query"": ""latest features in PowerShell 7"" } }</tool_call>"
-    FormatLabel = { param($params) "brave_search -> $($params.query)" }
+    FormatLabel = { param($params) "🦁 Brave Search -> $($params.query)" }
     Execute     = { param($params) Invoke-BraveSearchTool @params }
+    ToolUseGuidanceMajor = @"
+        - When to use 'brave_search': Use this tool for general web searches, especially when current information or external knowledge is required. It provides a list of search results including titles, URLs, and descriptions.
+        - Important parameters for 'brave_search': 
+            - `query`: Provide a clear and concise search query that directly addresses the information needed.
+        - Integration with other tools: The URLs retrieved from `brave_search` can be used as input for the `browse_web` tool to fetch the content of specific pages.
+        - If no results are found: Refine the `query` and try again, or inform the user.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Search the web for information.
+        - Basic use: Provide a simple, direct question or keywords as the `query`.
+        - Important: This tool connects to the internet to find information.
+"@
 }

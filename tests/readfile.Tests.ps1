@@ -2,7 +2,12 @@
 
 Describe "Invoke-ReadFileTool Functionality" {
     BeforeAll {
-        . (Join-Path $PSScriptRoot "../tools/readfile.ps1")
+        $toolPath = Join-Path $PSScriptRoot "../tools/readfile.ps1"
+        if (-not (Test-Path $toolPath)) {
+            $toolPath = Join-Path $PSScriptRoot "../more_tools/readfile.ps1"
+        }
+        $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
+        Invoke-Expression $content
         $script:testFile = New-TemporaryFile
         Set-Content -Path $script:testFile.FullName -Value "hello world"
     }
