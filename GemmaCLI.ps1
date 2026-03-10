@@ -234,7 +234,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.5.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.5.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -694,9 +694,9 @@ while ($true) {
         if ($jsonStr) {
             if ($preText) { Render-ModelText -text $preText }
          # Bulletproof sanitization: handles escaped quotes AND escaped backslashes
-         $jsonStr = [System.Text.RegularExpressions.Regex]::Replace($jsonStr, '(?s)("(?:[^"\\]|\\.)*")', {
-             param($m) $m.Value -replace "\r\n|\r|\n", '\n'
-         })
+         $jsonStr = $jsonStr -replace "\r\n", ' '
+         $jsonStr = $jsonStr -replace "\r",   ' '
+         $jsonStr = $jsonStr -replace "\n",   ' '
     
          if ($script:debugMode) {
             Write-Host "`n[DEBUG] Sanitized Tool Call JSON: $jsonStr" -ForegroundColor Yellow
@@ -739,7 +739,7 @@ while ($true) {
                 Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
 
                 $script:toolJob = Start-Job -ScriptBlock {
-                    param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir)
+                    param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history)
                     Set-Location -Path $workDir
                     
                     # Initialize core script state inside the job
@@ -752,6 +752,7 @@ while ($true) {
                     $script:apiCallLog_Gemini = [System.Collections.Generic.List[datetime]]::new()
                     $script:lastApiCall = (Get-Date).AddSeconds(-10)
                     $script:lastApiCall_Gemini = (Get-Date).AddSeconds(-10)
+                    $script:history = $history
 
                     # Dot-source core libraries inside the job
                     . (Join-Path $scriptDir "lib/Api.ps1")
@@ -778,7 +779,7 @@ while ($true) {
                     } finally {
                         $ToolMeta = $null
                     }
-                } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir
+                } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir, $script:history
 
 
                 $cancelled = $false
