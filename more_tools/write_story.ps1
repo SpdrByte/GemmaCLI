@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - write_story.ps1 v0.1.0
+# GemmaCLI Tool - write_story.ps1 v0.1.1
 # Responsibility: Sends conversation history to Gemini Flash 2.5 Lite
 #                 and writes the generated story to a .txt file.
 # ===============================================
@@ -24,28 +24,30 @@ function Invoke-WriteStoryTool {
     }
 
     # --- Build conversation summary from history ---
-    $historySummary = ""
-    if ($script:history -and $script:history.Count -gt 0) {
-        $lines = foreach ($entry in $script:history) {
-            $role = $entry.role
-            $text = ($entry.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
-            if ($text -and $text.Length -gt 0) {
-                "[$($role.ToUpper())]: $text"
-            }
-        }
-        $historySummary = $lines -join "`n"
-    }
+   $historySummary = ""
+   if ($script:history -and $script:history.Count -gt 0) {
+       $lines = foreach ($entry in $script:history) {
+           $role = $entry.role
+           $text = ($entry.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
+           $text = $text.Replace([char]0x201C, "'").Replace([char]0x201D, "'").Replace([char]0x2018, "'").Replace([char]0x2019, "'")
+           $text = $text.Replace('\\n', ' ').Replace('\\r', ' ').Replace('\\t', ' ')
+           if ($text -and $text.Length -gt 0) {
+               "[$($role.ToUpper())]: $text"
+           }
+       }
+       $historySummary = $lines -join "`n"
+   }
 
     # --- Build the prompt ---
     $storyPrompt = @"
-You are a creative fiction writer. Based on the conversation history below, write an engaging, well-structured short story. The story should capture the themes, characters, or ideas discussed in the conversation and present them in a compelling narrative form.
+You are a creative fiction writer. Based on the conversation history below, write an engaging, well-structured novel. The story should capture the themes, characters, or ideas discussed in the conversation and present them in a compelling narrative form.
 
 $(if ($topic) { "Additional focus for the story: $topic`n" })
 --- CONVERSATION HISTORY ---
 $historySummary
 --- END OF HISTORY ---
 
-Write the complete story now. Give it a title on the first line, then a blank line, then the story body.
+Write the complete story now. Give it a title on the first line, then a blank line, then the chapter title followed by chapter body. Make as many chapters as possible with context given.
 "@
 
     # --- API Call ---
@@ -68,7 +70,8 @@ Write the complete story now. Give it a title on the first line, then a blank li
             }
         }
 
-        $jsonBody    = $body | ConvertTo-Json -Compress -Depth 6
+        $jsonBody = $body | ConvertTo-Json -Compress -Depth 6
+        $jsonBody = $jsonBody.TrimStart([char]0xFEFF)
         $rawResponse = Invoke-WebRequest -Uri $uri -Method Post -Body $jsonBody `
                            -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
         $response    = $rawResponse.Content | ConvertFrom-Json
@@ -86,9 +89,13 @@ Write the complete story now. Give it a title on the first line, then a blank li
 
         return "OK: Story written to '$outPath' ($charCount characters). File: $fileName"
 
-    } catch {
-        $errorBody = $_.ErrorDetails.Message
-        return "ERROR: Gemini API call failed. Message: $($_.Exception.Message) | Body: $errorBody"
+     } catch {
+        $errorBody = ""
+        try { $errorBody = $_.Exception.Response.GetResponseStream() | ForEach-Object { (New-Object System.IO.StreamReader $_).ReadToEnd() } } catch {}
+        if (-not $errorBody) { $errorBody = $_.ErrorDetails.Message }
+        if (-not $errorBody) { $errorBody = $_.Exception.Message }
+        return "ERROR: Gemini API call failed.`nStatus: $($_.Exception.Response.StatusCode)`nBody: $errorBody`nPrompt length: $($storyPrompt.Length) chars`nJSON length: $($jsonBody.Length) chars"
+        Set-Content -Path "C:\Users\kevin\Documents\AI\debug_json.txt" -Value $jsonBody -Encoding UTF8
     }
 }
 
