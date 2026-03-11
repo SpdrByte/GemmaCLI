@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - write_story.ps1 v0.1.1
+# GemmaCLI Tool - write_story.ps1 v0.1.2
 # Responsibility: Sends conversation history to Gemini Flash 2.5 Lite
 #                 and writes the generated story to a .txt file.
 # ===============================================
@@ -127,4 +127,5 @@ $ToolMeta = @{
         - Optional 'topic' param lets you steer the genre or focus.
         - File saves to current directory as story.txt (auto-increments if file exists).
 "@
+
 }
