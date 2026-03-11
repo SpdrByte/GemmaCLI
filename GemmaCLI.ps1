@@ -824,6 +824,13 @@ while ($true) {
                 }
                 $truncNote = if ($truncated) { "`n[Note: file was truncated to $maxChars characters due to size limits]" } else { "" }
 
+                # Handle console-only messages (printed to user, stripped before Gemma sees result)
+                if ($result -match "(?s)^CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
+                    Write-Host $matches[1] -ForegroundColor DarkGray
+                    $result = $matches[2].Trim()
+                    if (-not $result) { $result = "(empty result)" }
+                }
+
                 # Handle image tool results — inject as multimodal content
                 if ($result -match "^IMAGE_DATA::([^:]+)::([^:]+)::(.+)$") {
                     $mime   = $matches[1]
