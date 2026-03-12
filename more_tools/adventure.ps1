@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - adventure.ps1 v0.2.1
+# GemmaCLI Tool - adventure.ps1 v0.2.3
 # Responsibility: Manages state for a text adventure / RPG game session.
 #   Gemma acts as Dungeon Master. This tool handles the mechanical layer:
 #   characters, dice rolls, inventory, HP, combat turns, locations, and save state.
@@ -7,6 +7,7 @@
 
 # ── State file path ──────────────────────────────────────────────────────────
 $script:ADVENTURE_SAVE = Join-Path $env:APPDATA "GemmaCLI\adventure_save.json"
+$script:ADVENTURE_FLAG = Join-Path $env:APPDATA "GemmaCLI\adventure_welcomed.flag"
 
 # ── Helper: Deep-clone a hashtable from a PSCustomObject ────────────────────
 function ConvertFrom-PSObject($obj) {
@@ -28,6 +29,7 @@ function Get-AdventureState {
         characters = @{}   # keyed by name (lowercase). Each entry is a hashtable.
         locations  = @{}   # keyed by name (lowercase).
         log        = @("A new adventure begins...")
+        last_log   = 0
         turn       = 0
         combat     = @{
             active     = $false
@@ -67,6 +69,7 @@ function Get-AdventureState {
             if ($null -ne $c.turn_index) { $state.combat.turn_index = [int]$c.turn_index }
             if ($null -ne $c.order)      { $state.combat.order      = @($c.order) }
         }
+        if ($null -ne $raw.last_log) { $state.last_log = [int]$raw.last_log }
 
     } catch {
         # Corrupt save — return defaults, next write will heal the file.
@@ -135,6 +138,14 @@ function Format-CharacterSheet($c) {
 "@
 }
 
+function Get-LogNudge($state) {
+    $turnsSince = $state.turn - $state.last_log
+    if ($turnsSince -gt 10) {
+        return "`n→ REMINDER: Nothing has been logged in $turnsSince turns. Summarize recent events with a log call."
+    }
+    return ""
+}
+
 # ════════════════════════════════════════════════════════════════════════════
 # MAIN TOOL FUNCTION
 # ════════════════════════════════════════════════════════════════════════════
@@ -154,11 +165,35 @@ function Invoke-AdventureTool {
         # ────────────────────────────────────────────────────────────────────
         "status" {
             $players = @($state.characters.Values | Where-Object { $_.type -eq "player" })
-            $pBlock = if ($players.Count -gt 0) {
-                ($players | ForEach-Object { Format-CharacterSheet $_ }) -join "`n"
-            } else {
-                "  No player character created yet. Call add_character first."
+
+            # Fresh game — show disclaimer once to player (console only) and direct Gemma to create characters
+            if ($state.turn -eq 0 -and -not (Test-Path $script:ADVENTURE_FLAG)) {
+                New-Item -Path $script:ADVENTURE_FLAG -ItemType File -Force | Out-Null
+                $consoleMsg  = "CONSOLE::"
+                $consoleMsg += "`n  +-Adventure Tool v.0.2x (in development SpdrByte.com)-----------+"
+                $consoleMsg += "`n  |  If Gemma forgets to:                                         |"
+                $consoleMsg += "`n  |   - Add/remove an item when you pick up or drop something     |"
+                $consoleMsg += "`n  |   - Update HP, gold, or inventory after a transaction         |"
+                $consoleMsg += "`n  |   - Roll dice before narrating an uncertain outcome           |"
+                $consoleMsg += "`n  |   - Update your location when you move                        |"
+                $consoleMsg += "`n  |  ...just remind her and she will correct it.                  |"
+                $consoleMsg += "`n  |                                                               |"
+                $consoleMsg += "`n  |  Works best with all other tools disabled in /settings        |"
+                $consoleMsg += "`n  |  Tell Gemma to reset adventure to wipe save and start fresh   |"
+                $consoleMsg += "`n  |  For best UX set smart trim to 2 and do not /clear context    |"
+                $consoleMsg += "`n  |  Use write_story tool to create a story about your adventure  |"
+                $consoleMsg += "`n  |  Report bugs: github.com/SpdrByte/GemmaCLI/issues/new         |"
+                $consoleMsg += "`n  +---------------------------------------------------------------+"
+                $consoleMsg += "`n::END_CONSOLE::"
+                return "$consoleMsg`nNEW GAME: No players exist yet. Ask the user how many players are joining, then collect Name, Sex, and Description for each. Call add_character for each player before doing anything else. Format: Name|player|Sex|Description"
             }
+
+            # Mid-session with no players
+            if ($players.Count -eq 0) {
+                return "NO PLAYERS: Ask the user how many players are joining, collect Name, Sex, and Description for each, then call add_character for each. Format: Name|player|Sex|Description"
+            }
+
+            $pBlock = ($players | ForEach-Object { Format-CharacterSheet $_ }) -join "`n"
 
             $npcBlock = ""
             $npcs = $state.characters.Values | Where-Object { $_.type -eq "npc" }
@@ -173,9 +208,8 @@ function Invoke-AdventureTool {
 
             $lastLogs = ($state.log | Select-Object -Last 5) -join "`n  "
             $combatNote = if ($state.combat.active) { "`n⚔️  COMBAT ACTIVE — Round $($state.combat.round)" } else { "" }
-            $hint = "CONSOLE::`n  +-Adventure Tool (in development)-------------------------------+`n  |  If Gemma forgets to:                                         |`n  |   - Add/remove an item when you pick up or drop something     |`n  |   - Update HP, gold, or inventory after a transaction         |`n  |   - Roll dice before narrating an uncertain outcome           |`n  |   - Update your location when you move                        |`n  |  ...just remind her and she will correct it.                  |`n  +---------------------------------------------------------------+`n::END_CONSOLE::`n"
 
-            return $hint + @"
+            return (Get-LogNudge $state) + @"
 ═══════════════════════════════════
  ADVENTURE STATUS  (Turn $($state.turn))$combatNote
 ═══════════════════════════════════
@@ -264,7 +298,6 @@ RECENT LOG:
                 $persFlag = if ($persistent) { "persistent" } else { "temporary (wiped on end_combat)" }
                 return @"
 ✅ NPC created: $name  HP: $hp/$hp  AC: $ac  Weapon: $weapon  [$persFlag]
-→ REMINDER: Always use randomname tool before add_character if NPC needs a name.
 → NEXT: If NPC has armor, call set_character|$name|armor|Leather-12
 → NEXT: To add notes/disposition call set_character|$name|notes|Your note here
 "@
@@ -324,8 +357,12 @@ RECENT LOG:
                 }
                 "gold" {
                     if ($c.type -ne "player") { return "ERROR: Only the player has gold." }
-                    if ($val -match '^[+-]') {
-                        $c.gold = [Math]::Max(0, [int]$c.gold + [int]$val)
+                    if ($val -match '^-') {
+                        $cost = [Math]::Abs([int]$val)
+                        if ($cost -gt [int]$c.gold) { return "ERROR: $name cannot afford this. Has $($c.gold) gold, needs $cost." }
+                        $c.gold = [int]$c.gold - $cost
+                    } elseif ($val -match '^\+') {
+                        $c.gold = [int]$c.gold + [int]$val.TrimStart('+')
                     } else {
                         $c.gold = [Math]::Max(0, [int]$val)
                     }
@@ -338,7 +375,7 @@ RECENT LOG:
                     $state.characters[$key] = $c
                     Save-AdventureState $state
                     $die = Get-WeaponDie $val
-                    return "✅ $name weapon set to '$val' (damage die: $die)"
+                    return "✅ $name weapon set to '$val' (damage die: $die)`n→ If this was a trade/purchase, call set_character|$name|gold|-amount or item-1 now."
                 }
                 "armor" {
                     # Parse AC from armor string e.g. "Chainmail-15"
@@ -350,7 +387,7 @@ RECENT LOG:
                     }
                     $state.characters[$key] = $c
                     Save-AdventureState $state
-                    return "✅ $name armor set to '$($c.armor)' (AC: $($c.ac))"
+                    return "✅ $name armor set to '$($c.armor)' (AC: $($c.ac))`n→ If this was a trade/purchase, call set_character|$name|gold|-amount or item-1 now."
                 }
                 "location" {
                     $c.location = $val
@@ -359,11 +396,10 @@ RECENT LOG:
                     return "✅ $name location set to '$val'"
                 }
                 "equipment_add" {
-                    if (-not $c.equipment) { $c.equipment = @() }
-                    $c.equipment += $val
+                    $c.equipment = @($c.equipment) + $val
                     $state.characters[$key] = $c
                     Save-AdventureState $state
-                    return "✅ Added '$val' to $name equipment. Equipment: $($c.equipment -join ', ')"
+                    return "✅ Added '$val' to $name equipment. Equipment: $($c.equipment -join ', ')`n→ If this was a trade/purchase, call set_character|$name|gold|-amount or item-1 now."
                 }
                 "equipment_remove" {
                     if (-not $c.equipment) { return "WARN: $name has no equipment." }
@@ -375,10 +411,9 @@ RECENT LOG:
                     return "✅ Removed '$val' from $name equipment."
                 }
                 "consumable_add" {
-                    if (-not $c.consumables) { $c.consumables = @() }
                     # Enforce asterisk prefix for consumables
                     $itemName = if ($val.StartsWith("*")) { $val } else { "*$val" }
-                    $c.consumables += $itemName
+                    $c.consumables = @($c.consumables) + $itemName
                     $state.characters[$key] = $c
                     Save-AdventureState $state
                     return "✅ Added consumable '$itemName' to $name. (Consumables are prefixed * and auto-removed on use)"
@@ -407,7 +442,7 @@ RECENT LOG:
                     return "✅ $name disposition set to '$val'"
                 }
                 default {
-                    return "ERROR: Unknown field '$field'. Valid fields: hp, max_hp, ac, gold, weapon, armor, location, equipment_add, equipment_remove, consumable_add, consumable_use, notes, disposition"
+                    return "ERROR: Unknown field '$field'. VALID FIELDS & EXAMPLES:`n  hp/max_hp/ac   set_character|Kev|hp|-5`n  gold           set_character|Kev|gold|-10  (blocked if insufficient funds)`n  weapon         set_character|Kev|weapon|Shortsword-d6`n  armor          set_character|Kev|armor|Leather-12`n  equipment_add  set_character|Kev|equipment_add|CrimsonFeather  (plain name, no * or suffix)`n  consumable_add set_character|Kev|consumable_add|*HealingPotion-hp+10  (* prefix + effect suffix)`n  consumable_use set_character|Kev|consumable_use|HealingPotion`n  location/notes/disposition  set_character|Kev|notes|Seeks revenge"
                 }
             }
         }
@@ -425,7 +460,7 @@ RECENT LOG:
             if ($v -eq "d20" -or $v -eq "1d20") {
                 $hint = "`n─ DC GUIDE: Easy 10+ | Moderate 13+ | Hard 16+ | Very Hard 19+ | Nat1=critical fail | Nat20=critical success"
             }
-            return "$($result.raw_string)$hint"
+            return "CONSOLE::`n  🎲 $($result.raw_string)$hint`n::END_CONSOLE::`n$($result.raw_string)"
         }
 
         # ────────────────────────────────────────────────────────────────────
@@ -478,8 +513,8 @@ RECENT LOG:
             return @"
 ✅ $who moved to '$locName'$newHint
 → REMINDER: Call log to record why they came here.
-→ REMINDER: Consider a passive perception roll (d20) if the area may have hidden elements.
-"@
+→ Silently roll passive perception (d20) if the area may have hidden elements.
+"@ + (Get-LogNudge $state)
         }
 
         # ────────────────────────────────────────────────────────────────────
@@ -506,6 +541,7 @@ RECENT LOG:
             if ([string]::IsNullOrWhiteSpace($v)) { return "ERROR: log requires a text entry." }
             $state.log += "[Turn $($state.turn)] $v"
             $state.turn++
+            $state.last_log = $state.turn
             Save-AdventureState $state
             $combatHint = if ($state.combat.active) { " Continue combat." } else { " Continue the scene." }
             return "✅ Logged.$combatHint"
@@ -516,7 +552,7 @@ RECENT LOG:
         # ────────────────────────────────────────────────────────────────────
         "start_combat" {
             if ([string]::IsNullOrWhiteSpace($v)) { return "ERROR: start_combat requires a comma-separated list of combatant names e.g. 'Kev,Goblin1,Goblin2'" }
-            $names = $v -split ',' | ForEach-Object { $_.Trim() }
+            $names = $v -split '[,|]' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
 
             # Validate all exist
             $missing = @()
@@ -595,7 +631,7 @@ $nextHint
                 if ($state.combat.turn_index -eq 0) { $state.combat.round++ }
                 $nextName = $state.combat.order[$state.combat.turn_index]
                 Save-AdventureState $state
-                return @"
+                return "CONSOLE::`n  ⚔️ $attName attacks $tgtName — Rolled: 1 vs AC $ac (CRITICAL MISS)`n::END_CONSOLE::`n" + @"
 🎲 $attName attacks $tgtName — Rolled: 1 vs AC $ac
 💥 CRITICAL MISS! Something goes wrong — narrate a fumble.
 → $attName's turn ends. Next: $nextName's turn.
@@ -605,7 +641,7 @@ $nextHint
 
             if ($hit) {
                 $critNote = if ($nat20) { " CRITICAL HIT! Roll damage twice." } else { "" }
-                return @"
+                 return "CONSOLE::`n  ⚔️ $attName attacks $tgtName — Rolled: $roll vs AC $ac (HIT)`n::END_CONSOLE::`n" + @"
 🎲 $attName attacks $tgtName — Rolled: $roll vs AC $ac
 ✅ HIT!$critNote $attName's weapon: $($att.weapon) (die: $die)
 → NEXT: Call combat_damage|$attName|$tgtName
@@ -623,7 +659,7 @@ $nextHint
                     "NPC turn. Call combat_roll|$nextName|[target]"
                 }
                 Save-AdventureState $state
-                return @"
+                return "CONSOLE::`n  ⚔️ $attName attacks $tgtName — Rolled: $roll vs AC $ac (MISS)`n::END_CONSOLE::`n" + @"
 🎲 $attName attacks $tgtName — Rolled: $roll vs AC $ac
 ❌ MISS. $attName's turn ends.
 → Round $($state.combat.round) — $nextName's turn. $nextHint
@@ -676,12 +712,12 @@ $nextHint
             $nextChar = Get-Character $state $nextName
             $nextType = if ($nextChar) { $nextChar.type } else { "unknown" }
             $nextHint = if ($tgt.hp -eq 0) { "" } elseif ($nextType -eq "player") {
-                "`n→ Round $($state.combat.round) — Player's turn. Offer attack options."
+                "`n→ Round $($state.combat.round) — $nextName's turn. Offer attack options. When $nextName attacks call combat_roll|$nextName|[target]"
             } else {
                 "`n→ Round $($state.combat.round) — $nextName's turn. Call combat_roll|$nextName|[target]"
             }
 
-            return @"
+            return "CONSOLE::`n  ⚔️ $attName hits $tgtName for $dmg damage! ($($result.raw_string))`n::END_CONSOLE::`n" + @"
 ⚔️  $attName hits $tgtName for $dmg damage! ($($result.raw_string))
    $tgtName HP: $oldHp → $($tgt.hp)/$($tgt.max_hp)$deathNote$nextHint
 "@
@@ -725,6 +761,7 @@ $nextHint
         # ────────────────────────────────────────────────────────────────────
         "reset" {
             if (Test-Path $script:ADVENTURE_SAVE) { Remove-Item $script:ADVENTURE_SAVE -Force }
+            if (Test-Path $script:ADVENTURE_FLAG) { Remove-Item $script:ADVENTURE_FLAG -Force }
             return "✅ Adventure state fully reset. A new story awaits. Call add_character to create a player."
         }
 
@@ -780,62 +817,54 @@ ADVENTURE TOOL — CRITICAL RULES  (read every turn)
 ══════════════════════════════════════════════════════════
 
 ─── SESSION START ───────────────────────────────────────
-1. ALWAYS call status on the FIRST message of every session. No exceptions.
-2. If no players exist, ask how many players and collect Name/Sex/Description for each.
-   Then call add_character ONE TIME PER PLAYER before doing ANYTHING else.
-   Do NOT set locations, narrate scenes, or call any other tool until every player has been saved.
-   PLAYER FORMAT IS EXACTLY: "Name|player|Sex|Description" — 'player' in position 2 is MANDATORY.
-   Example: add_character|"Kev|player|Male|Hardened adventurer with a beard"
-            add_character|"Anya|player|Female|Mysterious sorceress"
-   CONFIRM each add_character call succeeded before calling the next one.
-   Only begin the adventure after ALL players are confirmed created.
+1. Your VERY FIRST action on ANY new message in a session is ALWAYS to call status. No exceptions. Do not speak, do not ask questions, do not do anything else first.
+   The tool will tell you exactly what to do next. Follow its instructions.
 
 ─── NARRATION ORDER ─────────────────────────────────────
-3. For ROLLS: narrate the attempt FIRST → call roll/combat_roll → THEN narrate outcome based on the result. NEVER narrate the outcome before seeing the number.
-4. For STATE CHANGES (hp, gold, items): call the tool FIRST, silently, THEN narrate.
-5. log calls are ALWAYS silent. Never announce them to the player.
+2. For ROLLS: narrate the attempt FIRST → call roll/combat_roll → THEN narrate outcome based on the result. NEVER narrate the outcome before seeing the number.
+3. For STATE CHANGES (hp, gold, items): call the tool FIRST, silently, THEN narrate.
+4. log calls are ALWAYS silent. Never announce them to the player.
 
 ─── WHEN TO ROLL ────────────────────────────────────────
-6. Before narrating ANY uncertain outcome, ask yourself: "Does this require a check?"
+5. Before narrating ANY uncertain outcome, ask yourself: "Does this require a check?"
    ALWAYS roll d20 for: attacks, perception, sneaking, persuasion, strength feats, traps, magic, anything the player attempts that could fail.
    DC GUIDE: Easy=10+ | Moderate=13+ | Hard=16+ | Very Hard=19+ | Nat1=critical fail | Nat20=critical success
-7. On every move, consider a passive perception roll if the location may have hidden elements, danger, or secrets.
+6. On every move, silently roll passive perception (d20) if the location may have hidden elements, danger, or secrets.
 
 ─── CHARACTERS ──────────────────────────────────────────
-8. NEVER name an NPC without first calling the randomname tool. Then immediately call add_character.
-9. When adding an NPC weapon, use the format Name-die e.g. Shortsword-d6 | Dagger-d4 | Club-d6 | Greataxe-2d6
-10. When adding armor, use the format Name-AC e.g. Leather-12 | Chainmail-15 | Plate-18
-11. Consumables are ALWAYS prefixed with * e.g. *HealingPotion-hp+10. The tool enforces this automatically.
-12. Players cannot use items not in their inventory. Never allow hallucinated items.
+7. Add an NPC with add_character when they become significant: recurring characters like shop keepers, quest givers, companions, or anyone about to enter combat.
+8. When adding an NPC weapon, use the format Name-die e.g. Shortsword-d6 | Dagger-d4 | Club-d6 | Greataxe-2d6
+9. When adding armor, use the format Name-AC e.g. Leather-12 | Chainmail-15 | Plate-18
+10. Consumables use * prefix and effect suffix e.g. *HealingPotion-hp+10. Regular items use plain names only — no * prefix, no suffix. e.g. equipment_add|CrimsonFeather
+11. Players cannot use items not in their inventory. Never allow hallucinated items.
 
 ─── TRACKING ────────────────────────────────────────────
-13. MOVE RULE — When player travels to a new location, call move BEFORE you narrate arrival. NEVER narrate movement without calling move first. log is NOT a substitute for move.
+12. MOVE RULE — When player travels to a new location, call move BEFORE you narrate arrival. NEVER narrate movement without calling move first. log is NOT a substitute for move.
     Trigger words: "go north/south/east/west", "head to", "walk to", "enter", "leave", "travel to" → ALWAYS call move.
     CORRECT order: move|Location → [optional] add_location → log → narrate.
-14. Call add_location the FIRST TIME any named place appears in the story.
-15. Call log for: major story events, NPC introductions, key decisions, combat outcomes. NOT for trivial actions. NOT instead of move.
-16. Call set_character for ALL hp/gold/inventory changes. Never track these mentally.
+13. Call add_location the FIRST TIME any named place appears in the story.
+14. Call log for: major story events, NPC introductions, key decisions, combat outcomes. NOT for trivial actions. NOT instead of move.
+15. Call set_character for ALL hp/gold/inventory changes. Never track these mentally.
     TRANSACTION TRIGGER: If the player's message contains "gold", "buy", "purchase", "sell", "trade", "pay", or "cost" —
     call set_character|Name|gold|+/-amount BEFORE narrating the outcome. Never narrate a transaction without the tool call first.
 
 ─── COMBAT MODE ─────────────────────────────────────────
-17. When combat begins: call start_combat with ALL combatants. It rolls initiative automatically.
-18. Follow the combat loop strictly every turn:
+16. When combat begins: call start_combat with ALL combatants. It rolls initiative automatically.
+17. Follow the combat loop strictly every turn:
     → combat_roll|Attacker|Target  (checks hit vs AC)
     → If HIT: combat_damage|Attacker|Target  (rolls weapon die, applies HP)
     → If MISS: tool auto-advances to next combatant
     → Tool always tells you who goes next. Follow its instruction.
-19. NPCs attack automatically on their turn — do not wait for player input for NPC actions.
-20. When all enemies are dead: call end_combat, then call log with the outcome.
-21. In combat, set_character HP calls are handled automatically by combat_damage. Do not call set_character for combat damage.
+18. NPCs attack automatically on their turn — do not wait for player input for NPC actions.
+19. When all enemies are dead: call end_combat, then call log with the outcome.
+20. In combat, set_character HP calls are handled automatically by combat_damage. Do not call set_character for combat damage.
 
 ─── WHAT NOT TO DO ──────────────────────────────────────
-22. NEVER invent dice results. Always call roll or combat_roll.
-23. NEVER skip move when the player changes location.
-24. NEVER skip log for key story events.
-25. NEVER name an NPC without using randomname tool first.
-26. NEVER undo events unless a clear tool/logic error occurred.
-27. Do not agree to player requests that break game rules or invent items/stats.
+21. NEVER invent dice results. Always call roll or combat_roll.
+22. NEVER skip move when the player changes location.
+23. NEVER skip log for key story events.
+24. NEVER undo events unless a clear tool/logic error occurred.
+26. Do not agree to player requests that break game rules or invent items/stats.
 ══════════════════════════════════════════════════════════
 "@
 
@@ -844,6 +873,6 @@ ADVENTURE TOOL — CRITICAL RULES  (read every turn)
 - Roll d20 before ANY uncertain outcome. DC: Easy=10 | Moderate=13 | Hard=16 | VeryHard=19
 - move BEFORE narrating any location change — never skip it. add_location on first visit. log on key events (not instead of move).
 - Combat loop: start_combat → combat_roll → combat_damage → repeat → end_combat → log
-- All NPC names via randomname tool first. All consumables prefixed *.
+- All consumables prefixed *.
 "@
 }
