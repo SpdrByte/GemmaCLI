@@ -1,5 +1,7 @@
-# tools/writefile.ps1
-# Responsibility: Writes content to a file, creating it if it doesn't exist.
+# ===============================================
+# GemmaCLI Tool - writefile.ps1 v0.1.1
+# Responsibility: Writes content to a file, creating it if it doesn't exist
+# ===============================================
 
 function Invoke-WriteFileTool {
     param(
@@ -40,9 +42,22 @@ $ToolMeta = @{
         content   = "string - the text content to write to the file"
     }
     Example     = "<tool_call>{ ""name"": ""writefile"", ""parameters"": { ""file_path"": ""hello.txt"", ""content"": ""Hello, World!"" } }</tool_call>"
-    FormatLabel = { param($params) "writefile -> $($params.file_path)" }
+    FormatLabel = { param($params) "📄Writefile -> $($params.file_path)" }
     Execute     = {
         param($params)
         Invoke-WriteFileTool -file_path $params.file_path -content $params.content
     }
+    ToolUseGuidanceMajor = @"
+        - When to use 'writefile': Use this tool to write a file. Verify the existence of directory attempting to writefile, especially if the user has not provided an explicit path. This helps adhere to the 'Strict Evidence Policy'.
+        - Important parameters for 'writefile': 
+        - `file_path`: Always specify a file path.  ('.') Defaults to the current directory.
+        - `content`: The exact text to be written into the file. 
+        - Caution: This tool will overwrite a file if it already exists. Ensure this is the intended action. 
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Create or update a file.                                                                                                                                         │
+        - Basic use: Provide the file's path (`file_path`) and the text (`content`) to write.
+        - Important: Caution! This tool will overwrite existing files. 
+"@
+
 }
