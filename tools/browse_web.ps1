@@ -1,4 +1,4 @@
-# tools/browse_web.ps1
+# GemmaCLI Tool - browse_web.ps1 v0.1.2
 # Responsibility: Fetches clean, LLM-ready markdown content from any URL using
 # Jina Reader (r.jina.ai), which handles JavaScript, paywalls, and bot protection.
 # No API key required for basic use.
@@ -88,9 +88,21 @@ $ToolMeta = @{
         url = "string - the full URL to browse, e.g. 'https://example.com/article'"
     }
     Example     = "<tool_call>{ ""name"": ""browse_web"", ""parameters"": { ""url"": ""https://en.wikipedia.org/wiki/PowerShell"" } }</tool_call>"
-    FormatLabel = { param($params) "browse_web -> $($params.url)" }
+    FormatLabel = { param($params) "🌐 Browse Web -> $($params.url)" }
     Execute     = {
         param($params)
         Invoke-BrowseWebTool -url $params.url
     }
+    ToolUseGuidanceMajor = @"
+        - When to use 'browse_web': Use this tool to retrieve the content of a specific webpage when a URL is provided or obtained from `brave_search`. It handles various web complexities (JavaScript, paywalls) to return clean, LLM-ready markdown.
+        - Important parameters for 'browse_web': 
+            - `url`: Provide the full and valid URL of the webpage to browse. Ensure the URL is correctly formatted (e.g., starts with 'https://').
+        - Output: The tool returns the webpage content as markdown, which can be extensive. Be prepared to process or summarize large amounts of text.
+        - Error Handling: If the tool returns an error or no content, inform the user and consider if an alternative approach or URL is needed.
+"@
+    ToolUseGuidanceMinor = @"
+        - Purpose: Read the content of a webpage.
+        - Basic use: Provide the complete web address (`url`).
+        - Important: The tool might return a lot of text.
+"@
 }
