@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - chess.ps1 v1.0.0
+# GemmaCLI Tool - chess.ps1 v1.0.1
 # Responsibility: Stateful chess game with perfect legal-move validation.
 # Uses Unicode pieces (♘ ♞ etc.) and python-chess for 100% correct rules.
 # ===============================================
@@ -174,6 +174,7 @@ $ToolMeta = @{
           P=♙ N=♘ B=♗ R=♖ Q=♕ K=♔  p=♟ n=♞ b=♝ r=♜ q=♛ k=♚
           Light squares show ░░░, dark squares show ███. Keep the grid layout exactly as returned.
         - You always play as BLACK unless otherwise indicated by user.
+        - Do not give up because you are having trouble making legal moves, keep trying.
 "@
     ToolUseGuidanceMinor = @"
         - Show board: action=show
