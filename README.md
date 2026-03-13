@@ -28,6 +28,7 @@ GemmaCLI/
 ├── GemmaCLI.ps1       # Entry point & main interactive loop
 ├── lib/
 │   ├── Api.ps1        # Gemma API wrapper & retry logic
+│   ├── History.ps1    # Conversation history and context management
 │   ├── UI.ps1         # Console rendering, spinner, & status bar
 │   └── ToolLoader.ps1 # Tool discovery & dynamic registration
 ├── tools/             # Active tools (automatically loaded by the AI)
