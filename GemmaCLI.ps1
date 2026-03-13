@@ -204,6 +204,16 @@ if ($scheme -eq "alternative") {
     $script:Colors = $script:DefaultColors
 }
 
+# ====================== CONTEXT MODE INIT ======================
+$contextMode = if ($script:Settings.context_mode) { $script:Settings.context_mode } else { "standard" }
+if ($contextMode -eq "large") {
+    $script:CONTEXT_LIMIT = 128000
+    $script:TRIM_THRESHOLD = 60000
+} else {
+    $script:CONTEXT_LIMIT = 15000
+    $script:TRIM_THRESHOLD = 11000
+}
+
 # ====================== SPLASH ======================
 $startupDelay = if ($script:Settings.startup_delay) { [int]$script:Settings.startup_delay } else { 0 }
 if ($startupDelay -gt 0) { Start-Sleep -Seconds $startupDelay }
@@ -234,7 +244,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.5.3 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.5.4 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -392,7 +402,7 @@ while ($true) {
     }
 
     if ($userInput -eq "/settings") {
-        $settingsChoice = Show-ArrowMenu -Options @("Colors", "Tools", "Smart Trim", "Start Delay", "Exit") -Title "Settings"
+        $settingsChoice = Show-ArrowMenu -Options @("Colors", "Tools", "Smart Trim", "Context Mode", "Start Delay", "Exit") -Title "Settings"
         switch ($settingsChoice) {
             0 { 
                 $schemeOptions = @("Default Scheme", "Alternative Scheme")
@@ -406,8 +416,8 @@ while ($true) {
                 }
             }
             1 { 
-                $enabledTools = Get-ChildItem -Path "tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Enabled" } }
-                $disabledTools = Get-ChildItem -Path "more_tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Disabled" } }
+                $enabledTools = @(Get-ChildItem -Path "tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Enabled" } })
+                $disabledTools = @(Get-ChildItem -Path "more_tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Disabled" } })
                 $allTools = $enabledTools + $disabledTools
                 $toolOptions = $allTools | ForEach-Object { "$($_.Name) ($($_.Status))" }
                 $toolChoice = Show-ArrowMenu -Options $toolOptions -Title "Tool Management"
@@ -469,6 +479,16 @@ while ($true) {
                 }
             }
             3 {
+                $currentMode = if ($script:Settings.context_mode) { $script:Settings.context_mode } else { "standard" }
+                $defaultIdx = if ($currentMode -eq "large") { 1 } else { 0 }
+                $modeChoice = Show-ArrowMenu -Options @("Standard (15k - Google API)", "Large (128k - Enterprise/Paid)") -Title "Select Context Mode" -Default $defaultIdx
+                if ($modeChoice -ge 0) {
+                    $script:Settings.context_mode = if ($modeChoice -eq 1) { "large" } else { "standard" }
+                    $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
+                    Draw-Box @("Context mode set to '$($script:Settings.context_mode)'. Restart GemmaCLI to apply.") -Color Magenta
+                }
+            }
+            4 {
                 $currentDelay = if ($script:Settings.startup_delay) { [int]$script:Settings.startup_delay } else { 0 }
                 $delayOptions = @("0s  - No delay", "1s", "2s", "3s", "5s")
                 $delayValues  = @(0, 1, 2, 3, 5)
