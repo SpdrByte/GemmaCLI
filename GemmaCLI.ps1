@@ -234,7 +234,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.5.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.5.3 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -423,12 +423,12 @@ while ($true) {
                             Move-Item -Path "tools\$($selectedTool.Name).ps1" -Destination "more_tools/"
                             $script:Settings.disabled_tools += $selectedTool.Name
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
-                            Draw-Box @("Tool '$($selectedTool.Name)' has been disabled.") -Color Yellow
+                            Draw-Box @("Tool '$($selectedTool.Name)' disabled. Restart GemmaCLI to refresh tools.") -Color Yellow
                         } else {
                             Move-Item -Path "more_tools\$($selectedTool.Name).ps1" -Destination "tools/"
                             $script:Settings.disabled_tools = $script:Settings.disabled_tools | Where-Object { $_ -ne $selectedTool.Name }
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
-                            Draw-Box @("Tool '$($selectedTool.Name)' has been enabled.") -Color Yellow
+                            Draw-Box @("Tool '$($selectedTool.Name)' enabled. Restart GemmaCLI to refresh tools.") -Color Yellow
                         }
                     }
                 }
@@ -661,7 +661,10 @@ while ($true) {
                     }
                     Write-Host ""
                 } else {
-                     if ($seg.Trim()) { Write-Host $seg }
+                     if ($seg.Trim()) { 
+                        $hyperlinked = Convert-ToHyperlink -Text $seg
+                        Write-Host $hyperlinked 
+                     }
                 }
             }
             Write-Host ""
@@ -797,13 +800,13 @@ while ($true) {
 
                 if ($cancelled) {
                     Stop-Spinner
-                    Remove-Job $script:toolJob
+                    Remove-Job $script:toolJob -Force
                     Write-Host " [Tool execution cancelled by user]" -ForegroundColor Yellow
                     break
                 }
 
                 $result = Receive-Job $script:toolJob
-                Remove-Job $script:toolJob
+                Remove-Job $script:toolJob -Force
                 Stop-Spinner
                 if ($script:debugMode) { Write-Host "`n[DEBUG] Tool Execution Result: $result" -ForegroundColor Yellow }
 
@@ -826,7 +829,8 @@ while ($true) {
 
                 # Handle console-only messages (printed to user, stripped before Gemma sees result)
                 if ($result -match "(?s)^CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
-                    Write-Host $matches[1] -ForegroundColor DarkGray
+                    $consoleText = Convert-ToHyperlink -Text $matches[1]
+                    Write-Host $consoleText -ForegroundColor DarkGray
                     $result = $matches[2].Trim()
                     if (-not $result) { $result = "(empty result)" }
                 }
@@ -846,7 +850,11 @@ while ($true) {
                     }
                 } else {
                     $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
+                    $hyperlinkedResult = Convert-ToHyperlink -Text $result
                     $script:history += @{ role = "user"; parts = @(@{ text = "TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on context. Do not call this tool again immediately." }) }
+                    # Note: We send raw text to model, but print hyperlinked to console
+                    Write-Host " TOOL RESULT: " -NoNewline -ForegroundColor DarkGray
+                    Write-Host $hyperlinkedResult
                 }
 
                 Write-ApiLog -toolName $call.name
