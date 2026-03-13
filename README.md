@@ -1,12 +1,13 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.5.1](https://img.shields.io/badge/Version-0.5x-green)
+![Version: 0.5.3](https://img.shields.io/badge/Version-0.5x-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
 ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)
+[![Website](https://img.shields.io/badge/Web-SpdrByte.com-orange)](https://spdrbyte.com)
 
-Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family.  It's designed to work seamlessly with both the free and paid tiers of the Google AI Studio API, offering flexibility and scalability. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, and workflow automation.
+Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family.  It's designed to work seamlessly with both the free and paid tiers of the Google AI Studio API, offering flexibility and scalability. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, workflow automation, and professional image generation.
 
 ---
 
@@ -129,6 +130,35 @@ Access via /settings → Smart Trim.
 
 ---
 
+## Multimodal: Nano Banana Image Generation
+
+Gemma CLI includes the **Nano Banana** suite, a tiered image generation toolset powered by Google's Imagen 4.0 API. It features a smart, two-phase interactive flow to ensure technical compatibility between resolutions and aspect ratios.
+
+### Model Tiers
+
+* 🍌 **Nano Banana**: Powered by Gemini 2.5 Flash. Optimized for speed and high-volume, low-latency 1K assets.
+* 🍌 **Nano Banana 2**: Powered by Gemini 3.1 Flash. The high-efficiency tier supporting 512px assets and extreme aspect ratios (1:8, 8:1).
+* 🍌 **Nano Banana Pro**: Powered by Gemini 3 Pro. Designed for professional assets, 2K/4K resolution, and high-fidelity text rendering using advanced "Thinking" reasoning.
+
+### Smart Interaction Flow
+
+The CLI handles model selection automatically based on your intent. When you request an image, Gemma guides you through a two-step confirmation:
+
+1. **Phase 1 (Resolution)**: You select your size (512, 1K, 2K, or 4K).
+2. **Phase 2 (Dynamic Filtering)**: The tool identifies the best model for that size and returns a filtered list of supported aspect ratios (e.g., extreme ratios are only offered for Nano Banana 2).
+3. **Generation**: The final asset is generated and saved to your local temp directory.
+
+---
+
+## Interactive UI: Clickable Terminal Links
+
+To streamline your workflow, Gemma CLI supports **OSC 8 Hyperlinks**. This feature automatically scans Gemma's responses and tool results for Windows file paths and web URLs.
+
+* **Ctrl + Click to Open**: Any detected file path (like a newly generated image or a script) becomes a clickable link.
+* **System Integration**: Clicking a path opens Windows Explorer or the default file handler instantly, eliminating the need to copy-paste paths.
+* **Modern Terminal Support**: Works seamlessly in Windows Terminal, VS Code, and other modern emulators.
+
+---
 
 ## Reliability & Performance
 
@@ -179,7 +209,7 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 * Text to Speech feature
 
-* Image generation 
+* Image generation ✓
 
 ---
 
