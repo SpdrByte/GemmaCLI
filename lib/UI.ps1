@@ -2,6 +2,34 @@
 # Responsibility: Contains UI-related functions like Draw-Box, Show-ArrowMenu, Start-Spinner, and Start-BarTracker.
 # Keeps the main loop clean and focused on orchestration.
 
+function Convert-ToHyperlink {
+    param([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $Text }
+    
+    $esc = [char]27
+    # Regex for Windows Paths (e.g., C:\Users\...)
+    $pathRegex = '\b([A-Za-z]:\\[^ "''><\n\t\r\)\(]+)\b'
+    # Regex for URLs (http/https)
+    $urlRegex  = '\b(https?://[^ "''><\n\t\r\)\(]+)\b'
+
+    # Handle Web Links first
+    $Text = [regex]::Replace($Text, $urlRegex, {
+        param($m)
+        $url = $m.Groups[1].Value
+        return "$($esc)]8;;$($url)$($esc)\$($url)$($esc)]8;;$($esc)\"
+    })
+
+    # Handle File Paths (Convert \ to / for the file:/// URI)
+    $Text = [regex]::Replace($Text, $pathRegex, {
+        param($m)
+        $path = $m.Groups[1].Value
+        $uri  = "file:///" + $path.Replace('\', '/')
+        return "$($esc)]8;;$($uri)$($esc)\$($path)$($esc)]8;;$($esc)\"
+    })
+
+    return $Text
+}
+
 # ====================== SAFE CURSOR MOVE ======================
 function Set-CursorSafe {
     param([int]$row)
