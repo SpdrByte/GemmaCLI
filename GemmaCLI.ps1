@@ -852,14 +852,7 @@ while ($true) {
                     }
                 } else {
                     $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
-                    $hyperlinkedResult = Convert-ToHyperlink -Text $result
                     $script:history += @{ role = "user"; parts = @(@{ text = "TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on context. Do not call this tool again immediately." }) }
-                    
-                    # Only print the technical result if there wasn't a clean CONSOLE message provided
-                    if (-not $hasConsolePart) {
-                        Write-Host " TOOL RESULT: " -NoNewline -ForegroundColor DarkGray
-                        Write-Host $hyperlinkedResult
-                    }
                 }
 
                 Write-ApiLog -toolName $call.name
