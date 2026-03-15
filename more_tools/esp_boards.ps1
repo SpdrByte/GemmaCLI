@@ -1,0 +1,427 @@
+# ===============================================
+# GemmaCLI Tool - esp_boards.ps1 v1.1.0
+# Responsibility: Board knowledge for the ESP32 family.
+#                 Lists boards, pins, protocols, metadata, and renders
+#                 ASCII board diagrams with optional AEL pin highlighting.
+#                 Does NOT generate or validate AEL — use ael_validate for that.
+# Depends on: database/boards.json
+# ===============================================
+
+# ====================== PIN TYPE COLOR MAP ======================
+# Returns a ConsoleColor string for a given AEL pin type
+function Get-PinColor {
+    param([string]$pinType, [string[]]$protocols = @())
+
+    # Protocol-specific color takes priority over base type
+    foreach ($proto in $protocols) {
+        switch -Wildcard ($proto.ToUpper()) {
+            "I2C*"    { return "Blue"     }
+            "UART*"   { return "Magenta"  }
+            "SPI*"    { return "DarkCyan" }
+        }
+    }
+
+    # Fall back to base type color
+    switch ($pinType) {
+        "POWER_OUT" { return "Yellow"   }
+        "POWER_IN"  { return "Yellow"   }
+        "GROUND"    { return "DarkGray" }
+        "IO"        { return "Green"    }
+        "INPUT"     { return "Cyan"     }
+        "OUTPUT"    { return "Cyan"     }
+        default     { return "White"    }
+    }
+}
+# ====================== BOARD DATABASE LOADER ======================
+function Load-BoardDatabase {
+    param([string]$scriptDir)
+
+    $dbPath = Join-Path $scriptDir "database/boards.json"
+    if (-not (Test-Path $dbPath)) {
+        return @{ ok=$false; error="Board database not found at: $dbPath" }
+    }
+
+    try {
+        $raw = Get-Content $dbPath -Raw | ConvertFrom-Json
+        $db  = @{}
+        foreach ($prop in $raw.PSObject.Properties) {
+            $db[$prop.Name] = $prop.Value
+        }
+        return @{ ok=$true; db=$db }
+    } catch {
+        return @{ ok=$false; error="Failed to parse boards.json: $($_.Exception.Message)" }
+    }
+}
+
+# ====================== ASCII BOARD DIAGRAM RENDERER ======================
+function Render-BoardDiagram {
+    param(
+        [string]$boardId,
+        [object]$boardObj,
+        [string[]]$usedPins   # raw pin names currently in use e.g. @("GPIO2","GND","3V3")
+    )
+
+    if (-not $boardObj.layout) {
+        Write-Host "  No layout defined for '$boardId' in boards.json" -ForegroundColor Yellow
+        return
+    }
+
+    $leftPins  = @($boardObj.layout.left)
+    $rightPins = @($boardObj.layout.right)
+    $rows      = [Math]::Max($leftPins.Count, $rightPins.Count)
+
+    # Measure widths for alignment
+    $leftMax = 2
+    foreach ($p in $leftPins)  { if ($p.Length -gt $leftMax)  { $leftMax  = $p.Length } }
+    $rightMax = 2
+    foreach ($p in $rightPins) { if ($p.Length -gt $rightMax) { $rightMax = $p.Length } }
+
+    $boardLabel  = $boardObj.label.ToUpper()
+    $bodyWidth   = [Math]::Max(17, $boardLabel.Length + 4)
+    $innerWidth  = $leftMax + 2 + $bodyWidth + 2 + $rightMax
+
+    # Top border — centre the board label
+    $borderLine  = [string][char]0x2500   # ─
+    $TL          = [string][char]0x256D   # ╭
+    $TR          = [string][char]0x256E   # ╮
+    $BL          = [string][char]0x2570   # ╰
+    $BR          = [string][char]0x256F   # ╯
+    $V           = [string][char]0x2502   # │
+
+    $labelPad    = [Math]::Max(0, $bodyWidth - $boardLabel.Length - 2)
+    $lPad        = [Math]::Floor($labelPad / 2)
+    $rPad        = [Math]::Max(0, $labelPad - $lPad)
+    $titleBar    = $TL + ($borderLine * [Math]::Max(1, ($leftMax + 2))) + $TL + (" " * $lPad) + " $boardLabel " + (" " * $rPad) + $TR + ($borderLine * [Math]::Max(1, ($rightMax + 2))) + $TR
+
+    Write-Host ""
+    Write-Host ("  " + $titleBar) -ForegroundColor White
+
+    for ($i = 0; $i -lt $rows; $i++) {
+        $rowNum    = "L$($i+1)".PadLeft(3)
+        $lPin      = if ($i -lt $leftPins.Count)  { $leftPins[$i]  } else { "" }
+        $rPin      = if ($i -lt $rightPins.Count) { $rightPins[$i] } else { "" }
+        $rRowNum   = "R$($i+1)"
+
+        # Look up pin type for color
+        $lPinData  = if ($lPin -and $boardObj.pins.PSObject.Properties[$lPin]) { $boardObj.pins.PSObject.Properties[$lPin].Value } else { $null }
+        $rPinData  = if ($rPin -and $boardObj.pins.PSObject.Properties[$rPin]) { $boardObj.pins.PSObject.Properties[$rPin].Value } else { $null }
+        $lType     = if ($lPinData) { $lPinData.type }      else { "IO" }
+        $rType     = if ($rPinData) { $rPinData.type }      else { "IO" }
+        $lProtos   = if ($lPinData -and $lPinData.protocols) { @($lPinData.protocols) } else { @() }
+        $rProtos   = if ($rPinData -and $rPinData.protocols) { @($rPinData.protocols) } else { @() }
+        $lColor    = Get-PinColor -pinType $lType -protocols $lProtos
+        $rColor    = Get-PinColor -pinType $rType -protocols $rProtos
+
+        # In-use marker
+        $lUsed     = ($usedPins -contains $lPin) -and ($lPin -ne "")
+        $rUsed     = ($usedPins -contains $rPin) -and ($rPin -ne "")
+        $lMark     = if ($lUsed) { "*" } else { " " }
+        $rMark     = if ($rUsed) { "*" } else { " " }
+
+        # Pad pin names
+        $lPinPad   = $lPin.PadRight($leftMax)
+        $rPinPad   = $rPin.PadLeft($rightMax)
+
+        # Print row: "  L1  GPIO2* │               │ *GND    R1"
+        Write-Host "  " -NoNewline
+        Write-Host $rowNum -NoNewline -ForegroundColor DarkGray
+        Write-Host "  " -NoNewline
+
+        if ($lUsed) {
+            Write-Host $lPinPad -NoNewline -ForegroundColor White -BackgroundColor DarkGreen
+            Write-Host $lMark   -NoNewline -ForegroundColor Green
+        } else {
+            Write-Host $lPinPad -NoNewline -ForegroundColor $lColor
+            Write-Host $lMark   -NoNewline -ForegroundColor DarkGray
+        }
+
+        Write-Host " $V" -NoNewline -ForegroundColor DarkGray
+        Write-Host ("               ") -NoNewline -ForegroundColor DarkGray
+        Write-Host "$V " -NoNewline -ForegroundColor DarkGray
+
+        if ($rUsed) {
+            Write-Host $rMark   -NoNewline -ForegroundColor Green
+            Write-Host $rPinPad -NoNewline -ForegroundColor White -BackgroundColor DarkGreen
+        } else {
+            Write-Host $rMark   -NoNewline -ForegroundColor DarkGray
+            Write-Host $rPinPad -NoNewline -ForegroundColor $rColor
+        }
+
+        Write-Host "  " -NoNewline
+        Write-Host $rRowNum -ForegroundColor DarkGray
+    }
+
+    # Bottom border
+    $bottomBar = $BL + ($borderLine * [Math]::Max(1,($leftMax + 2))) + $BL + ($borderLine * [Math]::Max(1,$bodyWidth)) + $BR + ($borderLine * [Math]::Max(1,($rightMax + 2))) + $BR
+    Write-Host ("  " + $bottomBar) -ForegroundColor White
+    Write-Host ""
+
+    # Legend
+    Write-Host "  " -NoNewline
+    Write-Host "IO " -NoNewline -ForegroundColor Green
+    Write-Host " POWER " -NoNewline -ForegroundColor Yellow
+    Write-Host " GND " -NoNewline -ForegroundColor DarkGray
+    Write-Host " UART " -NoNewline -ForegroundColor Magenta
+    Write-Host " I2C " -NoNewline -ForegroundColor Blue
+    Write-Host " SPI " -NoNewline -ForegroundColor DarkCyan
+    Write-Host " INPUT " -NoNewline -ForegroundColor Cyan
+    if ($usedPins.Count -gt 0) {
+        Write-Host "  * = in use" -NoNewline -ForegroundColor Green
+    }
+    Write-Host ""
+    Write-Host ""
+}
+
+# ====================== MAIN FUNCTION ======================
+function Invoke-ESPBoards {
+    param(
+        [string]$action,
+        [string]$board,
+        [string]$protocol,
+        [string]$pin,
+        [string]$ael,
+        [string]$scriptDir
+    )
+
+    $action = $action.Trim().ToLower()
+    Stop-Spinner
+    Start-Sleep -Milliseconds 150
+
+    # --- Load DB ---
+    $load = Load-BoardDatabase -scriptDir $scriptDir
+    if (-not $load.ok) { return $load.error }
+    $db = $load.db
+
+    # ---- LIST BOARDS ----
+    if ($action -eq "list_boards") {
+        $lines = @("Supported ESP32 boards", "")
+        foreach ($id in ($db.Keys | Sort-Object)) {
+            $b        = $db[$id]
+            $pinCount = ($b.pins.PSObject.Properties | Measure-Object).Count
+            $lines   += "  $($id.PadRight(28)) $($b.label)   ($pinCount pins)"
+        }
+        Draw-Box -Lines $lines -Title "ESP Board Database" -Color Cyan
+        $result = ($db.Keys | Sort-Object | ForEach-Object {
+            $b = $db[$_]
+            @{ id=$_; label=$b.label; pin_count=($b.pins.PSObject.Properties | Measure-Object).Count }
+        }) | ConvertTo-Json -Depth 5
+        return "CONSOLE::Board list rendered.::END_CONSOLE::$result"
+    }
+
+    # --- All remaining actions require a board ---
+    if ([string]::IsNullOrWhiteSpace($board)) {
+        return "ERROR: 'board' parameter required for action '$action'. Use action='list_boards' to see available boards."
+    }
+
+    $boardId = $board.Trim().ToLower()
+    if (-not $db.ContainsKey($boardId)) {
+        $available = ($db.Keys | Sort-Object) -join ", "
+        return "ERROR: Board '$boardId' not found. Available: $available"
+    }
+    $boardObj = $db[$boardId]
+
+    # ---- DIAGRAM ----
+    if ($action -eq "diagram") {
+        Stop-Spinner
+        Start-Sleep -Milliseconds 150
+        # Parse used pins from AEL if provided
+        $usedPins = @()
+        if (-not [string]::IsNullOrWhiteSpace($ael)) {
+            # Extract all pin references: alias.PINNAME — collect the PINNAME part
+            $matches2 = [regex]::Matches($ael, '\b\w+\.(\w+)\b')
+            foreach ($m in $matches2) {
+                $pinName = $m.Groups[1].Value
+                # Only add if it's actually a pin on this board
+                if ($boardObj.pins.PSObject.Properties[$pinName]) {
+                    if ($usedPins -notcontains $pinName) { $usedPins += $pinName }
+                }
+            }
+        }
+
+        Render-BoardDiagram -boardId $boardId -boardObj $boardObj -usedPins $usedPins
+
+        $result = @{
+            board      = $boardId
+            label      = $boardObj.label
+            used_pins  = $usedPins
+            layout     = $boardObj.layout
+        } | ConvertTo-Json -Depth 5
+
+        $usedNote = if ($usedPins.Count -gt 0) { " Used pins: $($usedPins -join ', ')." } else { "" }
+        return "CONSOLE::Board diagram rendered for $($boardObj.label).$usedNote::END_CONSOLE::$result`n→ INSTRUCTION: The board diagram has already been drawn to the terminal. Do NOT redraw. Acknowledge result briefly."
+    }
+
+    # ---- LIST PINS ----
+    if ($action -eq "list_pins") {
+        $lines  = @("$($boardObj.label)", "")
+        foreach ($pinProp in ($boardObj.pins.PSObject.Properties | Sort-Object Name)) {
+            $p      = $pinProp.Value
+            $proto  = if ($p.protocols -and $p.protocols.Count -gt 0) { " [$($p.protocols -join ', ')]" } else { "" }
+            $volt   = if ($p.voltage) { " $($p.voltage)V" } else { "" }
+            $lines += "  $($pinProp.Name.PadRight(12)) $($p.type.PadRight(12))$volt$proto"
+        }
+        Draw-Box -Lines $lines -Title "Pins: $boardId" -Color Cyan
+        $result = @{ board=$boardId; label=$boardObj.label; pins=$boardObj.pins } | ConvertTo-Json -Depth 6
+        return "CONSOLE::Board list rendered.::END_CONSOLE::$result"
+    }
+
+    # ---- FILTER BY PROTOCOL ----
+    if ($action -eq "filter_protocol") {
+        if ([string]::IsNullOrWhiteSpace($protocol)) {
+            return "ERROR: 'protocol' parameter required for action 'filter_protocol'. Example: I2C, SPI, UART"
+        }
+        $protoUpper = $protocol.Trim().ToUpper()
+        $matched    = @{}
+        foreach ($pinProp in $boardObj.pins.PSObject.Properties) {
+            $p = $pinProp.Value
+            if ($p.protocols) {
+                $protos = @($p.protocols) | ForEach-Object { $_.ToUpper() }
+                if ($protos | Where-Object { $_ -like "*$protoUpper*" }) {
+                    $matched[$pinProp.Name] = $p
+                }
+            }
+        }
+        $lines = @("$($boardObj.label) — $protoUpper capable pins", "")
+        if ($matched.Count -eq 0) {
+            $lines += "  No pins found supporting '$protoUpper'"
+        } else {
+            foreach ($pinName in ($matched.Keys | Sort-Object)) {
+                $p      = $matched[$pinName]
+                $proto  = "[$($p.protocols -join ', ')]"
+                $lines += "  $($pinName.PadRight(12)) $($p.type.PadRight(12)) $proto"
+            }
+        }
+        Draw-Box -Lines $lines -Title "$protoUpper Pins: $boardId" -Color Cyan
+        $result = @{ board=$boardId; protocol=$protoUpper; pins=$matched } | ConvertTo-Json -Depth 6
+        return "CONSOLE::Board list rendered.::END_CONSOLE::$result"
+    }
+
+    # ---- CHECK PIN ----
+    if ($action -eq "check_pin") {
+        if ([string]::IsNullOrWhiteSpace($pin)) {
+            return "ERROR: 'pin' parameter required for action 'check_pin'. Example: GPIO8, 3V3, GND"
+        }
+        $pinName = $pin.Trim()
+        $pinData = $null
+        foreach ($pinProp in $boardObj.pins.PSObject.Properties) {
+            if ($pinProp.Name -eq $pinName) { $pinData = $pinProp.Value; break }
+        }
+        if (-not $pinData) {
+            $similar    = $boardObj.pins.PSObject.Properties | Where-Object { $_.Name -like "*$pinName*" } | ForEach-Object { $_.Name }
+            $suggestion = if ($similar) { "Did you mean: $($similar -join ', ')?" } else { "Use action='list_pins' to see all pins." }
+            $lines      = @("Pin '$pinName' does NOT exist on $($boardObj.label)", "", $suggestion)
+            Draw-Box -Lines $lines -Title "Pin Check: $boardId" -Color Red
+            return (@{ board=$boardId; pin=$pinName; exists=$false; message="Pin '$pinName' not found. $suggestion" } | ConvertTo-Json -Depth 4)
+        }
+        $proto = if ($pinData.protocols -and $pinData.protocols.Count -gt 0) { @($pinData.protocols) } else { @() }
+        $lines = @(
+            "Pin '$pinName' on $($boardObj.label)", "",
+            "  Type       $($pinData.type)",
+            "  Voltage    $(if ($pinData.voltage) { "$($pinData.voltage)V" } else { 'N/A' })",
+            "  Protocols  $(if ($proto.Count -gt 0) { $proto -join ', ' } else { 'None' })"
+        )
+        Draw-Box -Lines $lines -Title "Pin Check: $boardId" -Color Green
+        $result = @{ board=$boardId; pin=$pinName; exists=$true; type=$pinData.type; voltage=$pinData.voltage; protocols=$proto } | ConvertTo-Json -Depth 4
+        return "CONSOLE::Board list rendered.::END_CONSOLE::$result"
+    }
+
+    # ---- PIN METADATA ----
+    if ($action -eq "pin_metadata") {
+        if ([string]::IsNullOrWhiteSpace($pin)) {
+            return "ERROR: 'pin' parameter required for action 'pin_metadata'."
+        }
+        $pinName = $pin.Trim()
+        $pinData = $null
+        foreach ($pinProp in $boardObj.pins.PSObject.Properties) {
+            if ($pinProp.Name -eq $pinName) { $pinData = $pinProp.Value; break }
+        }
+        if (-not $pinData) {
+            return "ERROR: Pin '$pinName' not found on '$boardId'. Use action='list_pins' to see all pins."
+        }
+        $proto   = if ($pinData.protocols -and $pinData.protocols.Count -gt 0) { @($pinData.protocols) } else { @() }
+        $aelType = $pinData.type
+        $notes   = @()
+        if ($pinData.notes)          { $notes += $pinData.notes }
+        if ($aelType -eq "IO")        { $notes += "Bidirectional — can be INPUT or OUTPUT in firmware" }
+        if ($aelType -eq "POWER_OUT") { $notes += "Power rail — use POWER keyword in AEL" }
+        if ($aelType -eq "GROUND")    { $notes += "Ground reference — use POWER or NET in AEL" }
+        $lines = @(
+            "$boardId  $ARR  $pinName", "",
+            "  AEL Type     $aelType",
+            "  Voltage      $(if ($pinData.voltage) { "$($pinData.voltage)V" } else { 'N/A' })",
+            "  Protocols    $(if ($proto.Count -gt 0) { $proto -join ', ' } else { 'None' })"
+        )
+        if ($notes.Count -gt 0) {
+            $lines += ""
+            $lines += "  Notes:"
+            foreach ($n in $notes) { $lines += "    $BUL $n" }
+        }
+        Draw-Box -Lines $lines -Title "Pin Metadata" -Color Cyan
+        $result = @{ board=$boardId; pin=$pinName; ael_type=$aelType; voltage=$pinData.voltage; protocols=$proto; notes=$notes } | ConvertTo-Json -Depth 4
+        return "CONSOLE::Board list rendered.::END_CONSOLE::$result"
+    }
+
+    return "ERROR: Unknown action '$action'. Valid actions: list_boards, list_pins, filter_protocol, check_pin, pin_metadata, diagram"
+}
+
+# ====================== TOOL REGISTRATION ======================
+
+$ToolMeta = @{
+    Name        = "esp_boards"
+    RendersToConsole = $true
+    Behavior    = "Provides pin maps, protocol capabilities, voltage data, and ASCII board diagrams for the ESP32 family. Call this ONLY when the user explicitly requests circuit help, pin information, or a board diagram for an ESP32 board. Do NOT call proactively or at session start."
+    Description = "Query ESP32 board data: list boards, list pins, filter by protocol, check pin existence, get pin metadata, or render an ASCII board diagram with optional AEL pin highlighting."
+    Parameters  = @{
+        action   = "string - one of: list_boards | list_pins | filter_protocol | check_pin | pin_metadata | diagram"
+        board    = "string (optional for list_boards) - board id e.g. esp32c3_supermini"
+        protocol = "string (required for filter_protocol) - e.g. I2C, SPI, UART"
+        pin      = "string (required for check_pin, pin_metadata) - e.g. GPIO8, 3V3, GND"
+        ael      = "string (optional for diagram) - AEL circuit text; used pins will be highlighted on the diagram"
+    }
+    Example     = @"
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "list_boards" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "diagram", "board": "esp32c3_supermini" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "diagram", "board": "esp32c3_supermini", "ael": "BOARD esp32c3_supermini AS esp\nCOMP led1 LED\nWIRE esp.GPIO2 -> led1.A\nWIRE led1.C -> esp.GND" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "list_pins", "board": "esp32c3_supermini" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "filter_protocol", "board": "esp32c3_supermini", "protocol": "I2C" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "check_pin", "board": "esp32c3_supermini", "pin": "GPIO8" } }</tool_call>
+<tool_call>{ "name": "esp_boards", "parameters": { "action": "pin_metadata", "board": "esp32c3_supermini", "pin": "GPIO2" } }</tool_call>
+"@
+    FormatLabel = { param($p)
+        $b   = if ($p.board) { " $ARR $($p.board)" } else { "" }
+        $pin = if ($p.pin)   { " [$($p.pin)]" }       else { "" }
+        "ESP Boards  $ARR  $($p.action)$b$pin"
+    }
+    Execute     = {
+        param($params)
+        Invoke-ESPBoards `
+            -action   $params.action `
+            -board    $params.board `
+            -protocol $params.protocol `
+            -pin      $params.pin `
+            -ael      $params.ael `
+            -scriptDir $scriptDir
+    }
+    ToolUseGuidanceMajor = @"
+- When to use 'esp_boards': ALWAYS use when the user explicitly asks for a circuit, pin information, or a board diagram for an ESP32 board. Do not draw your own. 
+- action='diagram' renders a colour-coded ASCII board layout. Pass 'ael' to highlight which pins are in use.
+- Recommended workflow for circuit generation:
+    1. Call esp_boards action='list_pins' to confirm valid pin names
+    2. Call esp_boards action='filter_protocol' if circuit uses I2C/SPI/UART
+    3. Generate AEL using the returned pin names
+    4. Call ael_validate to check the circuit
+    5. Call esp_boards action='diagram' with the validated AEL to show the board with used pins highlighted
+- action='list_boards' — no other params needed
+- action='list_pins' — requires 'board'
+- action='filter_protocol' — requires 'board' and 'protocol' (I2C, SPI, UART, PWM)
+- action='check_pin' — requires 'board' and 'pin'
+- action='pin_metadata' — requires 'board' and 'pin'
+- action='diagram' — requires 'board'; 'ael' is optional for pin highlighting
+- AEL pin reference format: alias.PINNAME e.g. esp.GPIO8
+"@
+    ToolUseGuidanceMinor = @"
+- Purpose: ESP32 board pin data and diagrams.
+- Use diagram action after generating validated AEL to show the user which pins are in use.
+- Use filter_protocol to find I2C/SPI/UART pins before writing BUS statements.
+"@
+}
