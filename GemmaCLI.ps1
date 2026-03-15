@@ -244,7 +244,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.5.4 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.5.5 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -692,25 +692,26 @@ while ($true) {
 
         $jsonStr = $null
         $preText = $null
+        $strippedText = $modelText -replace '(?s)<code_block>.*?</code_block>', '[code block]'
 
         # Format 1: Official XML style <tool_call>{...}</tool_call>
-        if ($modelText -match '(?s)(.*?)<tool_call>\s*(\{.*?\})\s*</tool_call>' -and $modelText -notmatch '<code_block>') {
+        if ($strippedText -match '(?s)(.*?)<tool_call>\s*(\{.*?\})\s*</tool_call>') {
             $preText = $matches[1].Trim(); $jsonStr = $matches[2]
         }
         # Format 2: Markdown style ```tool_code\n{...}\n```
-        elseif ($modelText -match '(?s)(.*?)```tool_code\s*(\{.*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```tool_code' -and $modelText -notmatch '<code_block>') {
+        elseif ($strippedText -match '(?s)(.*?)```tool_code\s*(\{.*?\})\s*```' -and $strippedText -notmatch '(?s)```[^`]*```tool_code') {
             $preText = $matches[1].Trim(); $jsonStr = $matches[2]
         }
         # Format 3: Codefence style ```tool_call\n{...}\n```
-        elseif ($modelText -match '(?s)(.*?)```tool_call\s*(\{.*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```tool_call' -and $modelText -notmatch '<code_block>') {
+        elseif ($strippedText -match '(?s)(.*?)```tool_call\s*(\{.*?\})\s*```' -and $strippedText -notmatch '(?s)```[^`]*```tool_call') {
             $preText = $matches[1].Trim(); $jsonStr = $matches[2]
         }
         # Format 4: Plain ```json\n{...}\n``` with a name field
-        elseif ($modelText -match '(?s)(.*?)```json\s*(\{.*?""name"".*?\})\s*```' -and $modelText -notmatch '(?s)```[^`]*```json' -and $modelText -notmatch '<code_block>') {
+        elseif ($strippedText -match '(?s)(.*?)```json\s*(\{.*?"name".*?\})\s*```' -and $strippedText -notmatch '(?s)```[^`]*```json') {
             $preText = $matches[1].Trim(); $jsonStr = $matches[2]
         }
         # Format 5: Bare function call style tool_name({"param": "value"})
-        elseif ($modelText -match '(?s)(.*?)(\w+)\(\s*(\{.*?\})\s*\)' -and $modelText -notmatch '<code_block>') {
+        elseif ($strippedText -match '(?s)(.*?)(\w+)\(\s*(\{.*?\})\s*\)') {
             $preText = $matches[1].Trim(); $jsonStr = "{`"name`": `"$($matches[2])`", `"parameters`": $($matches[3])}"
         }
 
@@ -759,7 +760,13 @@ while ($true) {
 
                 # Execute tool directly in the main session as in 019
                 # but with a simple Esc check loop if possible
-                Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
+                $isRenderingTool = $tool.RendersToConsole -eq $true
+                if ($isRenderingTool) {
+                    Stop-Spinner
+                    Start-Sleep -Milliseconds 160
+                } else {
+                    Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
+                }
 
                 $script:toolJob = Start-Job -ScriptBlock {
                     param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history)
