@@ -1,0 +1,335 @@
+{
+  "_notes": "AEL Component Library. Each entry defines pins and optional vcc_range [min, max] in volts. Pin types: PASSIVE, INPUT, OUTPUT, IO, POWER_IN, GROUND.",
+
+  "LED": {
+    "label": "LED",
+    "description": "Light Emitting Diode. Always use a current-limiting resistor in series.",
+    "pins": {
+      "A": "PASSIVE",
+      "C": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "RES": {
+    "label": "Resistor",
+    "description": "Generic resistor. Use value= attribute e.g. value=220R, value=10K.",
+    "pins": {
+      "A": "PASSIVE",
+      "B": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "CAP": {
+    "label": "Capacitor",
+    "description": "Generic capacitor. Use value= attribute e.g. value=100nF, value=10uF.",
+    "pins": {
+      "A": "PASSIVE",
+      "B": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "BUTTON": {
+    "label": "Pushbutton",
+    "description": "Momentary pushbutton switch. Use a pull-up or pull-down resistor to avoid floating input.",
+    "pins": {
+      "A": "PASSIVE",
+      "B": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "BUZZER": {
+    "label": "Buzzer",
+    "description": "Passive or active buzzer. Passive requires PWM signal; active requires DC.",
+    "pins": {
+      "A": "PASSIVE",
+      "B": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "NPN": {
+    "label": "NPN Transistor",
+    "description": "NPN BJT transistor e.g. 2N2222, BC547. Base driven by GPIO via resistor.",
+    "pins": {
+      "B": "INPUT",
+      "C": "PASSIVE",
+      "E": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "MOSFET": {
+    "label": "N-Channel MOSFET",
+    "description": "N-channel MOSFET e.g. IRLZ44N. Gate driven by GPIO.",
+    "pins": {
+      "G": "INPUT",
+      "D": "PASSIVE",
+      "S": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "DIODE": {
+    "label": "Rectifier Diode",
+    "description": "General purpose diode e.g. 1N4007. Used for flyback protection, reverse polarity.",
+    "pins": {
+      "A": "PASSIVE",
+      "C": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "ZENER": {
+    "label": "Zener Diode",
+    "description": "Zener diode for voltage clamping/regulation. Use value= for breakdown voltage e.g. value=3.3V.",
+    "pins": {
+      "A": "PASSIVE",
+      "C": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "BATT": {
+    "label": "Battery",
+    "description": "Battery or battery pack. Use value= for voltage e.g. value=9V, value=3.7V.",
+    "pins": {
+      "P": "POWER_OUT",
+      "N": "GROUND"
+    },
+    "vcc_range": null
+  },
+
+  "REG": {
+    "label": "Voltage Regulator",
+    "description": "Linear voltage regulator e.g. AMS1117-3.3, LM7805. Use value= for output voltage e.g. value=3.3V.",
+    "pins": {
+      "IN":  "POWER_IN",
+      "OUT": "POWER_OUT",
+      "GND": "GROUND"
+    },
+    "vcc_range": null
+  },
+
+  "OLED_I2C": {
+    "label": "I2C OLED Display",
+    "description": "128x64 or 128x32 I2C OLED display. Typically SSD1306. 3.3V only.",
+    "pins": {
+      "SDA": "IO",
+      "SCL": "IO",
+      "VCC": "POWER_IN",
+      "GND": "GROUND"
+    },
+    "vcc_range": [3.0, 3.6]
+  },
+
+  "LCD_I2C": {
+    "label": "I2C LCD Display",
+    "description": "16x2 or 20x4 LCD with I2C backpack (PCF8574). Typically 5V but many modules accept 3.3V.",
+    "pins": {
+      "SDA": "IO",
+      "SCL": "IO",
+      "VCC": "POWER_IN",
+      "GND": "GROUND"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "DHT22": {
+    "label": "DHT22 Temp/Humidity Sensor",
+    "description": "AM2302 digital temp and humidity sensor. Single-wire data. Needs 10K pull-up on DATA.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "DATA": "IO",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "DHT11": {
+    "label": "DHT11 Temp/Humidity Sensor",
+    "description": "Basic digital temp and humidity sensor. Lower accuracy than DHT22. Needs 10K pull-up on DATA.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "DATA": "IO",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "DS18B20": {
+    "label": "DS18B20 Temperature Sensor",
+    "description": "1-Wire digital temperature sensor. Needs 4.7K pull-up on DATA to VCC.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "DATA": "IO",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [3.0, 5.5]
+  },
+
+  "PIR": {
+    "label": "PIR Motion Sensor",
+    "description": "Passive infrared motion sensor e.g. HC-SR501. Output goes HIGH on motion detection.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "OUT": "OUTPUT",
+      "GND": "GROUND"
+    },
+    "vcc_range": [4.5, 20.0]
+  },
+
+  "LDR": {
+    "label": "Light Dependent Resistor",
+    "description": "Photoresistor. Resistance decreases with light. Use in a voltage divider with a fixed resistor.",
+    "pins": {
+      "A": "PASSIVE",
+      "B": "PASSIVE"
+    },
+    "vcc_range": null
+  },
+
+  "SOIL": {
+    "label": "Soil Moisture Sensor",
+    "description": "Capacitive or resistive soil moisture sensor. AOUT is analog, DOUT is digital threshold.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "AOUT": "OUTPUT",
+      "DOUT": "OUTPUT",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "NEOPIXEL": {
+    "label": "NeoPixel / WS2812B",
+    "description": "Addressable RGB LED strip or ring. DIN is data in, DOUT chains to next pixel. Use a 300-500R resistor on DIN.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "DIN":  "INPUT",
+      "DOUT": "OUTPUT",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [4.5, 5.5]
+  },
+
+  "SERVO": {
+    "label": "Servo Motor",
+    "description": "RC servo motor. SIG is PWM control signal (50Hz). Most servos are 5V — do not power from ESP 3V3 pin directly.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "GND": "GROUND",
+      "SIG": "INPUT"
+    },
+    "vcc_range": [4.8, 6.0]
+  },
+
+  "RELAY": {
+    "label": "Relay Module",
+    "description": "Single or multi-channel relay module. IN is active-LOW control from GPIO. Use flyback diode on coil.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "GND": "GROUND",
+      "IN":  "INPUT",
+      "COM": "PASSIVE",
+      "NO":  "PASSIVE",
+      "NC":  "PASSIVE"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "POTENTIOMETER": {
+    "label": "Potentiometer",
+    "description": "Variable resistor with wiper. VCC and GND on outer pins, WIPER (analog out) on centre.",
+    "pins": {
+      "VCC":   "POWER_IN",
+      "WIPER": "OUTPUT",
+      "GND":   "GROUND"
+    },
+    "vcc_range": null
+  },
+
+  "ENCODER": {
+    "label": "Rotary Encoder",
+    "description": "Incremental rotary encoder with optional push button. CLK and DT are quadrature outputs.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "GND": "GROUND",
+      "CLK": "OUTPUT",
+      "DT":  "OUTPUT",
+      "SW":  "OUTPUT"
+    },
+    "vcc_range": [3.3, 5.5]
+  },
+
+  "ULTRASONIC": {
+    "label": "Ultrasonic Distance Sensor",
+    "description": "HC-SR04 or similar. TRIG is triggered by GPIO pulse, ECHO returns distance pulse. Note: ECHO is 5V — use voltage divider with 3.3V MCUs.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "TRIG": "INPUT",
+      "ECHO": "OUTPUT",
+      "GND":  "GROUND"
+    },
+    "vcc_range": [4.5, 5.5]
+  },
+
+  "MAX7219": {
+    "label": "MAX7219 LED Matrix Driver",
+    "description": "SPI LED matrix or 7-segment display driver. Daisy-chainable.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "GND":  "GROUND",
+      "DIN":  "INPUT",
+      "CS":   "INPUT",
+      "CLK":  "INPUT",
+      "DOUT": "OUTPUT"
+    },
+    "vcc_range": [4.0, 5.5]
+  },
+
+  "MPU6050": {
+    "label": "MPU-6050 IMU",
+    "description": "6-axis accelerometer and gyroscope over I2C. 3.3V only on most breakout boards.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "GND": "GROUND",
+      "SDA": "IO",
+      "SCL": "IO",
+      "INT": "OUTPUT"
+    },
+    "vcc_range": [3.0, 3.6]
+  },
+
+  "BMP280": {
+    "label": "BMP280 Pressure/Temp Sensor",
+    "description": "Barometric pressure and temperature sensor over I2C or SPI.",
+    "pins": {
+      "VCC": "POWER_IN",
+      "GND": "GROUND",
+      "SDA": "IO",
+      "SCL": "IO",
+      "SDO": "INPUT",
+      "CSB": "INPUT"
+    },
+    "vcc_range": [1.8, 3.6]
+  },
+
+  "SSD1306": {
+    "label": "SSD1306 OLED (SPI)",
+    "description": "SPI variant of the SSD1306 OLED display driver.",
+    "pins": {
+      "VCC":  "POWER_IN",
+      "GND":  "GROUND",
+      "SCK":  "INPUT",
+      "MOSI": "INPUT",
+      "CS":   "INPUT",
+      "DC":   "INPUT",
+      "RST":  "INPUT"
+    },
+    "vcc_range": [3.0, 3.6]
+  }
+}
