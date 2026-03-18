@@ -38,6 +38,8 @@ function Invoke-ViewImageTool {
 
 $ToolMeta = @{
     Name        = "view_image"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production")
     Behavior    = "Use this tool to analyze an image provided by the user. It is the only way to 'see' an image."
     Description = "Loads a local image file (PNG, JPG, GIF, WEBP) and allows the LLM to 'view' it, enabling multimodal analysis. Use this when the user asks a question about an image."
     Parameters  = @{
