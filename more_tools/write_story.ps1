@@ -103,6 +103,8 @@ Write the complete story now. Give it a title on the first line, then a blank li
 
 $ToolMeta = @{
     Name        = "write_story"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production", "Help/Consultation")
     Behavior    = "Generates a creative short story based on the current conversation history using Gemini Flash 2.5 Lite, then saves it as a .txt file in the current working directory."
     Description = "Sends the full conversation history to Gemini Flash 2.5 Lite and instructs it to write a story. Saves the output to story.txt (or story(1).txt etc. if the file already exists)."
     Parameters  = @{
@@ -127,5 +129,4 @@ $ToolMeta = @{
         - Optional 'topic' param lets you steer the genre or focus.
         - File saves to current directory as story.txt (auto-increments if file exists).
 "@
-
 }

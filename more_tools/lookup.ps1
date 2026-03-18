@@ -96,6 +96,8 @@ function Invoke-LookupTool {
 
 $ToolMeta = @{
     Name        = "lookup"
+    RendersToConsole = $false
+    Category    = @("Search and Discover")
     Behavior    = "Use this tool for quick lookups of factual, time-sensitive information. It's best for questions about current events, versions, or leaders. For in-depth research, prefer `brave_search`."
     Description = "Looks up current real-world facts that may have changed since training. Use when the user asks about 'latest', 'current', 'newest', 'who is the president/CEO of', or any versioned or time-sensitive fact. Not suitable for recent news, sports scores, or financial data."
     Parameters  = @{

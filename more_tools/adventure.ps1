@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - adventure.ps1 v0.2.3
+# GemmaCLI Tool - adventure.ps1 v0.2.4
 # Responsibility: Manages state for a text adventure / RPG game session.
 #   Gemma acts as Dungeon Master. This tool handles the mechanical layer:
 #   characters, dice rolls, inventory, HP, combat turns, locations, and save state.
@@ -130,6 +130,7 @@ function Format-CharacterSheet($c) {
   [$($c.type.ToUpper())] $($c.name)
   HP:          $($c.hp) / $($c.max_hp)
   AC:          $($c.ac)
+  Location:    $($c.location)
   Weapon:      $($c.weapon)
   Armor:       $($c.armor)
   Equipment:   $equip
@@ -776,6 +777,8 @@ $nextHint
 # ════════════════════════════════════════════════════════════════════════════
 $ToolMeta = @{
     Name        = "adventure"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Description = "Manages persistent state for a text RPG: characters, dice, inventory, HP, gold, locations, and turn-based combat. Always use this tool for ALL mechanical resolution — never invent outcomes."
 
     Parameters  = @{

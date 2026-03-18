@@ -27,6 +27,8 @@ function Invoke-HttpGetTool {
 
 $ToolMeta = @{
     Name        = "http_get"
+    RendersToConsole = $false
+    Category    = @("Search and Discover", "Physical Computing")
     Behavior    = "Use this tool to make a simple GET request to a URL and retrieve the raw content. For reading web pages, `browse_web` is preferred as it returns cleaner, LLM-ready markdown."
     Description = "Performs an HTTP GET request to a URL, returning the raw content."
     Parameters  = @{

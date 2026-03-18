@@ -150,6 +150,8 @@ function Invoke-NanoBananaTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "nanobanana"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production", "Gaming/Entertainment")
     Behavior    = "Use this tool to generate images. It uses a two-step process: First confirm the size to find valid ratios, then generate."
     Description = "Generates images. Step 1 sets size; Step 2 sets ratio and generates. Note: 2K/4K may require a paid API tier."
     Parameters  = @{

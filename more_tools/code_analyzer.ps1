@@ -5,6 +5,8 @@
 
 $ToolMeta = @{
     Name        = "code_analyzer"
+    RendersToConsole = $false
+    Category    = @("Coding/Development")
     Description = "Analyzes code for errors, security vulnerabilities, style issues, performance problems and suggests fixes. Powered by Gemma for expert-level, language-agnostic analysis."
     Behavior    = "When you are analyzing code, be concise and direct. Focus on actionable feedback that the user can implement. If the user provides a large block of code, focus on the most critical issues first."
     Parameters  = @{

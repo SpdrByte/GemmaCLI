@@ -1,5 +1,5 @@
-﻿# ===============================================
-# GemmaCLI Tool - randomname.ps1 v0.2
+# ===============================================
+# GemmaCLI Tool - randomname.ps1 v0.3.0
 # Responsibility: Generates a random name with specified criteria.
 # ===============================================
 
@@ -9,24 +9,19 @@ function Invoke-RandomNameTool {
         [string]$style
     )
 
-    $maleModernNames   = @("Ethan", "Noah", "Liam", "Mason", "Jacob", "Jared", "Joe",
-                           "Ryan", "Tyler", "Brandon", "Austin", "Dylan", "Logan", "Hunter")
-    $femaleModernNames = @("Olivia", "Emma", "Ava", "Sophia", "Isabella",
-                           "Mia", "Charlotte", "Amelia", "Harper", "Ella", "Chloe", "Lily")
+    $maleModernNames   = @("Emmitt", "Ethan", "Noah", "Liam", "Mason", "Jacob", "Jared", "Joe", "Ryan", "Tyler", "Brandon", "Austin", "Dylan", "Logan", "Hunter", "Mr. Black", "Officer Miller", "Dr. Vance", "Coach Murphy", "The Professor", "Sgt. Hartman", "Victor 'The Snake' Rossi", "Julian Graves")
+    $femaleModernNames = @("Olivia", "Emma", "Ava", "Sophia", "Isabella", "Mia", "Charlotte", "Amelia", "Harper", "Ella", "Chloe", "Lily", "Ms. Gable", "Detective Thorne", "Dr. Sarah Jenkins", "Auntie May", "The Widow Ross", "Sloane 'Ace' Cassidy", "Principal Skinner", "Elena the Architect")
 
-    $maleSciFiNames    = @("Jax", "Kael", "Zane", "Rylo", "Corvus",
-                           "Oryn", "Drex", "Voss", "Talon", "Crix", "Nexus", "Arlo")
-    $femaleSciFiNames  = @("Lyra", "Nova", "Astra", "Vega", "Seraphina",
-                           "Zara", "Nyx", "Cleo", "Ionic", "Phaedra", "Solara", "Rhea")
+    $maleSciFiNames    = @("Jax", "Kael", "Zane", "Rylo", "Corvus", "Oryn", "Drex", "Voss", "Talon", "Crix", "Nexus", "Arlo", "Unit 734", "Commander Vex", "Xylos of Sector 4", "Cypher-9", "Techno-Priest Malen", "The Exile", "Orbit-Zero", "Captain Star-Drifter", "Quasar-Jack")
+    $femaleSciFiNames  = @("Luna", "Lyra", "Nova", "Astra", "Vega", "Seraphina", "Zara", "Nyx", "Cleo", "Ionic", "Phaedra", "Solara", "Rhea", "Pilot Juno", "Oracle Prime", "Echo-7", "The Galactic Matriarch", "Nebula the Rogue", "Zenith-Alpha", "Commander Iris", "Starlight-Sia")
 
-    $maleFantasyNames  = @("Aric", "Torin", "Lysander", "Kieran", "Eamon",
-                           "Aldric", "Theron", "Caelan", "Dorian", "Faelen", "Gideon", "Hadrian")
-    $femaleFantasyNames= @("Elara", "Seraphine", "Isolde", "Rowan", "Aeliana",
-                           "Sylara", "Brynn", "Calista", "Dawneth", "Fiora", "Gwendolyn", "Thessaly")
+    $maleFantasyNames  = @("Aric", "Torin", "Lysander", "Kieran", "Eamon", "Aldric", "Theron", "Caelan", "Dorian", "Faelen", "Gideon", "Hadrian", "Shegath the Wicked", "Bilfo of Cameronwood", "Grog the Stout", "Lord Valerius", "Thalric the Bold", "Brynjar of the Iron Hills", "The Shadow-Stalker", "Old Man Grom", "Sir Cedric the Brave", "Kaelen of the Silver Oath")
+    $femaleFantasyNames= @("Ara", "Elara", "Seraphine", "Isolde", "Rowan", "Aeliana", "Sylara", "Brynn", "Calista", "Dawneth", "Fiora", "Gwendolyn", "Thessaly", "Morgana the Cursed", "Lady Whisper", "Elowen of the Glade", "The Witch of the Wilds", "Queen Valeriana", "Mira the Swift", "Lyanna the Rose", "Sariel of the Star-Fall")
+
 
     # Normalize inputs
-    $sexNorm   = $sex.Trim()
-    $styleNorm = $style.Trim().ToLower()
+    $sexNorm   = if ($sex) { $sex.Trim() } else { "Male" }
+    $styleNorm = if ($style) { $style.Trim().ToLower() } else { "modern" }
 
     switch ($styleNorm) {
         "modern"  { $names = if ($sexNorm -eq "Female") { $femaleModernNames  } else { $maleModernNames  } }
@@ -37,7 +32,9 @@ function Invoke-RandomNameTool {
 
     if ($names) {
         $randomName = Get-Random -InputObject $names
-        return "Random name generated: $randomName  (Sex: $sexNorm, Style: $styleNorm)"
+        $msg = "🎲 Random name generated: $randomName"
+        $technical = "Random name generated: $randomName (Sex: $sexNorm, Style: $styleNorm)"
+        return "CONSOLE::$msg::END_CONSOLE::$technical"
     } else {
         return "ERROR: Could not generate name."
     }
@@ -47,6 +44,8 @@ function Invoke-RandomNameTool {
 
 $ToolMeta = @{
     Name        = "randomname"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Behavior    = "Generates a random name based on specified sex and style. Use when the user asks for a random name, a character name, or a name suggestion."
     Description = "Returns a random name given a sex (Male/Female) and a style (modern, sci-fi, fantasy)."
     Parameters  = @{

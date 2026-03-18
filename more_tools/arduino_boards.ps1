@@ -1,6 +1,6 @@
 # ===============================================
-# GemmaCLI Tool - esp_boards.ps1 v1.1.1
-# Responsibility: Board knowledge for the ESP32 family.
+# GemmaCLI Tool - arduino_boards.ps1 v1.0.1
+# Responsibility: Board knowledge for the Arduino family.
 #                 Lists boards, pins, protocols, metadata, and renders
 #                 ASCII board diagrams with optional AEL pin highlighting.
 #                 Does NOT generate or validate AEL — use ael_validate for that.
@@ -18,6 +18,8 @@ function Get-PinColor {
             "I2C*"    { return "Blue"     }
             "UART*"   { return "Magenta"  }
             "SPI*"    { return "DarkCyan" }
+            "PWM"     { return "Yellow"   }
+            "ADC"     { return "Green"    }
         }
     }
 
@@ -58,7 +60,7 @@ function Render-BoardDiagram {
     param(
         [string]$boardId,
         [object]$boardObj,
-        [string[]]$usedPins   # raw pin names currently in use e.g. @("GPIO2","GND","3V3")
+        [string[]]$usedPins   # raw pin names currently in use e.g. @("D2","GND","5V")
     )
 
     if (-not $boardObj.layout) {
@@ -81,10 +83,11 @@ function Render-BoardDiagram {
     $bodyWidth   = [Math]::Max(15, $boardLabel.Length + 2)
     
     # 3. Calculate Wing Lengths
+    # Wing must cover: Label(3) + Gutter(2) + LeftMax + Marker(1) + Gap(1) = LeftMax + 6
     $leftWingW   = $leftMax + 6
     $rightWingW  = $rightMax + 6
 
-    # Border symbols
+    # Top border symbols
     $borderLine  = [string][char]0x2500   # ─
     $TL          = [string][char]0x256D   # ╭
     $TR          = [string][char]0x256E   # ╮
@@ -92,7 +95,7 @@ function Render-BoardDiagram {
     $BR          = [string][char]0x256F   # ╯
     $V           = [string][char]0x2502   # │
 
-    # Centering the label
+    # Centering the label in the body
     $labelPad    = [Math]::Max(0, $bodyWidth - $boardLabel.Length)
     $lPad        = [Math]::Floor($labelPad / 2)
     $rPad        = $labelPad - $lPad
@@ -126,8 +129,9 @@ function Render-BoardDiagram {
         # Print row
         Write-Host "  " -NoNewline
         Write-Host $rowNum -NoNewline -ForegroundColor DarkGray
-        Write-Host "  " -NoNewline
+        Write-Host "  " -NoNewline # Gutter
 
+        # Left Pin
         if ($lUsed) {
             Write-Host $lPin.PadRight($leftMax) -NoNewline -ForegroundColor White -BackgroundColor DarkGreen
             Write-Host $lMark -NoNewline -ForegroundColor Green
@@ -136,10 +140,12 @@ function Render-BoardDiagram {
             Write-Host $lMark -NoNewline -ForegroundColor DarkGray
         }
 
+        # Body Walls and Gap
         Write-Host " $V" -NoNewline -ForegroundColor DarkGray
         Write-Host (" " * $bodyWidth) -NoNewline -ForegroundColor DarkGray
         Write-Host "$V " -NoNewline -ForegroundColor DarkGray
 
+        # Right Pin
         if ($rUsed) {
             Write-Host $rMark -NoNewline -ForegroundColor Green
             Write-Host $rPin.PadLeft($rightMax) -NoNewline -ForegroundColor White -BackgroundColor DarkGreen
@@ -148,7 +154,7 @@ function Render-BoardDiagram {
             Write-Host $rPin.PadLeft($rightMax) -NoNewline -ForegroundColor $rColor
         }
 
-        Write-Host "  " -NoNewline
+        Write-Host "  " -NoNewline # Gutter
         Write-Host $rRowNum -ForegroundColor DarkGray
     }
 
@@ -165,7 +171,7 @@ function Render-BoardDiagram {
     Write-Host " UART " -NoNewline -ForegroundColor Magenta
     Write-Host " I2C " -NoNewline -ForegroundColor Blue
     Write-Host " SPI " -NoNewline -ForegroundColor DarkCyan
-    Write-Host " INPUT " -NoNewline -ForegroundColor Cyan
+    Write-Host " ADC " -NoNewline -ForegroundColor Green
     if ($usedPins.Count -gt 0) {
         Write-Host "  * = in use" -NoNewline -ForegroundColor Green
     }
@@ -174,7 +180,7 @@ function Render-BoardDiagram {
 }
 
 # ====================== MAIN FUNCTION ======================
-function Invoke-ESPBoards {
+function Invoke-ArduinoBoards {
     param(
         [string]$action,
         [string]$board,
@@ -182,7 +188,7 @@ function Invoke-ESPBoards {
         [string]$pin,
         [string]$ael,
         [string]$scriptDir,
-        [string]$vendor = "Espressif Systems"
+        [string]$vendor = "Arduino"
     )
 
     $action = $action.Trim().ToLower()
@@ -242,11 +248,9 @@ function Invoke-ESPBoards {
         # Parse used pins from AEL if provided
         $usedPins = @()
         if (-not [string]::IsNullOrWhiteSpace($ael)) {
-            # Extract all pin references: alias.PINNAME — collect the PINNAME part
             $matches2 = [regex]::Matches($ael, '\b\w+\.(\w+)\b')
             foreach ($m in $matches2) {
                 $pinName = $m.Groups[1].Value
-                # Only add if it's actually a pin on this board
                 if ($boardObj.pins.PSObject.Properties[$pinName]) {
                     if ($usedPins -notcontains $pinName) { $usedPins += $pinName }
                 }
@@ -314,7 +318,7 @@ function Invoke-ESPBoards {
     # ---- CHECK PIN ----
     if ($action -eq "check_pin") {
         if ([string]::IsNullOrWhiteSpace($pin)) {
-            return "ERROR: 'pin' parameter required for action 'check_pin'. Example: GPIO8, 3V3, GND"
+            return "ERROR: 'pin' parameter required for action 'check_pin'. Example: D2, 5V, GND"
         }
         $pinName = $pin.Trim()
         $pinData = $null
@@ -357,7 +361,7 @@ function Invoke-ESPBoards {
         $aelType = $pinData.type
         $notes   = @()
         if ($pinData.notes)          { $notes += $pinData.notes }
-        if ($aelType -eq "IO")        { $notes += "Bidirectional — can be INPUT or OUTPUT in firmware" }
+        if ($aelType -eq "IO")        { $notes += "Digital I/O pin" }
         if ($aelType -eq "POWER_OUT") { $notes += "Power rail — use POWER keyword in AEL" }
         if ($aelType -eq "GROUND")    { $notes += "Ground reference — use POWER or NET in AEL" }
         $lines = @(
@@ -382,34 +386,36 @@ function Invoke-ESPBoards {
 # ====================== TOOL REGISTRATION ======================
 
 $ToolMeta = @{
-    Name        = "esp_boards"
+    Name        = "arduino_boards"
     RendersToConsole = $true
     Category    = @("Physical Computing")
-    Behavior    = "Provides pin maps, protocol capabilities, voltage data, and ASCII board diagrams for the ESP32 family. Call this ONLY when the user explicitly requests circuit help, pin information, or a board diagram for an ESP32 board. Do NOT call proactively or at session start."
-    Description = "Query ESP32 board data: list boards, list pins, filter by protocol, check pin existence, get pin metadata, or render an ASCII board diagram with optional AEL pin highlighting."
+    Behavior    = "Provides pin maps, protocol capabilities, voltage data, and ASCII board diagrams for the Arduino family. Call this ONLY when the user explicitly requests circuit help, pin information, or a board diagram for an Arduino board. Do NOT call proactively or at session start."
+    Description = "Query Arduino board data: list boards, list pins, filter by protocol, check pin existence, get pin metadata, or render an ASCII board diagram with optional AEL pin highlighting."
     Parameters  = @{
         action   = "string - one of: list_boards | list_pins | filter_protocol | check_pin | pin_metadata | diagram"
-        board    = "string (optional for list_boards) - board id e.g. esp32c3_supermini"
-        protocol = "string (required for filter_protocol) - e.g. I2C, SPI, UART"
-        pin      = "string (required for check_pin, pin_metadata) - e.g. GPIO8, 3V3, GND"
+        board    = "string (optional for list_boards) - board id e.g. arduino_uno"
+        protocol = "string (required for filter_protocol) - e.g. I2C, SPI, UART, PWM, ADC"
+        pin      = "string (required for check_pin, pin_metadata) - e.g. D2, A0, GND"
         ael      = "string (optional for diagram) - AEL circuit text; used pins will be highlighted on the diagram"
-        vendor   = "string (optional) - filter boards by vendor, default 'Espressif Systems'"
+        vendor   = "string (optional) - filter boards by vendor, default 'Arduino'"
     }
     Example     = @"
-<tool_call>{ "name": "esp_boards", "parameters": { "action": "list_boards" } }</tool_call>
-<tool_call>{ "name": "esp_boards", "parameters": { "action": "list_boards", "vendor": "QSZNTEC" } }</tool_call>
-<tool_call>{ "name": "esp_boards", "parameters": { "action": "diagram", "board": "esp32c3_supermini" } }</tool_call>
+<tool_call>{ "name": "arduino_boards", "parameters": { "action": "list_boards" } }</tool_call>
+<tool_call>{ "name": "arduino_boards", "parameters": { "action": "diagram", "board": "arduino_uno" } }</tool_call>
+<tool_call>{ "name": "arduino_boards", "parameters": { "action": "diagram", "board": "arduino_uno", "ael": "BOARD arduino_uno AS ard\nCOMP led1 LED\nWIRE ard.D13 -> led1.A\nWIRE led1.C -> ard.GND" } }</tool_call>
+<tool_call>{ "name": "arduino_boards", "parameters": { "action": "list_pins", "board": "arduino_uno" } }</tool_call>
+<tool_call>{ "name": "arduino_boards", "parameters": { "action": "filter_protocol", "board": "arduino_uno", "protocol": "PWM" } }</tool_call>
 "@
     FormatLabel = { param($p)
         $b   = if ($p.board) { " $ARR $($p.board)" } else { "" }
-        $vndr = if ($p.vendor -and $p.vendor -ne "Espressif Systems") { " [$($p.vendor)]" } else { "" }
+        $vndr = if ($p.vendor -and $p.vendor -ne "Arduino") { " [$($p.vendor)]" } else { "" }
         $pin = if ($p.pin)   { " [$($p.pin)]" }       else { "" }
-        "ESP Boards  $ARR  $($p.action)$b$vndr$pin"
+        "Arduino Boards  $ARR  $($p.action)$b$vndr$pin"
     }
     Execute     = {
         param($params)
-        $vndr = "Espressif Systems"; if ($params.vendor) { $vndr = $params.vendor }
-        Invoke-ESPBoards `
+        $vndr = "Arduino"; if ($params.vendor) { $vndr = $params.vendor }
+        Invoke-ArduinoBoards `
             -action   $params.action `
             -board    $params.board `
             -protocol $params.protocol `
@@ -419,25 +425,25 @@ $ToolMeta = @{
             -vendor   $vndr
     }
     ToolUseGuidanceMajor = @"
-- When to use 'esp_boards': ALWAYS use when the user explicitly asks for a circuit, pin information, or a board diagram for an ESP32 board. Do not draw your own. 
+- When to use 'arduino_boards': ALWAYS use when the user explicitly asks for a circuit, pin information, or a board diagram for an Arduino board. Do not draw your own. 
 - action='diagram' renders a colour-coded ASCII board layout. Pass 'ael' to highlight which pins are in use.
 - Recommended workflow for circuit generation:
-    1. Call esp_boards action='list_pins' to confirm valid pin names
-    2. Call esp_boards action='filter_protocol' if circuit uses I2C/SPI/UART
+    1. Call arduino_boards action='list_pins' to confirm valid pin names
+    2. Call arduino_boards action='filter_protocol' if circuit uses I2C/SPI/UART/PWM/ADC
     3. Generate AEL using the returned pin names
     4. Call ael_validate to check the circuit
-    5. Call esp_boards action='diagram' with the validated AEL to show the board with used pins highlighted
+    5. Call arduino_boards action='diagram' with the validated AEL to show the board with used pins highlighted
 - action='list_boards' — no other params needed
 - action='list_pins' — requires 'board'
-- action='filter_protocol' — requires 'board' and 'protocol' (I2C, SPI, UART, PWM)
+- action='filter_protocol' — requires 'board' and 'protocol' (I2C, SPI, UART, PWM, ADC)
 - action='check_pin' — requires 'board' and 'pin'
 - action='pin_metadata' — requires 'board' and 'pin'
 - action='diagram' — requires 'board'; 'ael' is optional for pin highlighting
-- AEL pin reference format: alias.PINNAME e.g. esp.GPIO8
+- AEL pin reference format: alias.PINNAME e.g. ard.D13
 "@
     ToolUseGuidanceMinor = @"
-- Purpose: ESP32 board pin data and diagrams.
+- Purpose: Arduino board pin data and diagrams.
 - Use diagram action after generating validated AEL to show the user which pins are in use.
-- Use filter_protocol to find I2C/SPI/UART pins before writing BUS statements.
+- Use filter_protocol to find I2C/SPI/UART/PWM pins before writing BUS statements.
 "@
 }

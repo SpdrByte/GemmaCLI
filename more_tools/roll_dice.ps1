@@ -152,6 +152,8 @@ function Invoke-RollTool {
 # --- Registration ---
 $ToolMeta = @{
     Name        = "roll_dice"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Behavior    = "Rolls dice using standard RPG notation (e.g. 2d6, 1d20+5). Returns visual ASCII dice and a full breakdown."
     Description = "Evaluates dice expressions. Returns rolls, visual art, total, and crit flags."
     Parameters  = @{ expression = "string - e.g. '2d6', '1d20+5', 'd8'" }

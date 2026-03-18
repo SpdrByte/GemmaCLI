@@ -103,6 +103,8 @@ Write the complete script now. Give it a title on the first line, then a blank l
 
 $ToolMeta = @{
     Name        = "write_script"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production")
     Behavior    = "Generates a creative short script/screenplay based on the current conversation history using Gemini Flash 2.5 Lite, then saves it as a .txt file in the current working directory."
     Description = "Sends the full conversation history to Gemini Flash 2.5 Lite and instructs it to write a script. Saves the output to script.txt (or script(1).txt etc. if the file already exists)."
     Parameters  = @{

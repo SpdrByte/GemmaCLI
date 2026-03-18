@@ -123,6 +123,8 @@ $historySummary
 
 $ToolMeta = @{
     Name        = "summarize_context"
+    RendersToConsole = $false
+    Category    = @("Help/Consultation", "Memory Management")
     Behavior    = "Summarizes the current conversation history into a structured Markdown document and saves it as a .md file. Use when the user wants to save, export, or recap the conversation."
     Description = "Sends the full conversation history to Gemini Flash 2.5 Lite and generates a structured Markdown summary with sections for overview, key topics, decisions, action items, and notable details. Saves to the current working directory."
     Parameters  = @{

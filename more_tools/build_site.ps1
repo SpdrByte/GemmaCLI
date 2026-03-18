@@ -266,6 +266,7 @@ function Invoke-BuildSite {
 $ToolMeta = @{
     Name             = "build_site"
     RendersToConsole = $true
+    Category    = @("Coding/Development")
     Behavior         = "Prepares website files for deployment: validates source paths, syncs to a build directory, and produces a compressed archive. Call when the user wants to build, package, or deploy website files. Do NOT call proactively or speculatively."
     Description      = "Automate website deployment prep: validate a source directory, sync files to a build folder (with exclusions and dry-run support), create a deployment ZIP archive, and verify output with SHA-256."
     Parameters       = @{

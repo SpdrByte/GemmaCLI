@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - background_check.ps1 v0.3.0
+﻿# ===============================================
+# GemmaCLI Tool - background_check.ps1 v0.3.1
 # Responsibility: Comprehensive background screening tool.
 #                 Sources: Registry, State Courts, FBI Wanted.
 #                 Built on working v2.3.0 PSCustomObject foundation.
@@ -150,7 +150,7 @@ function New-UnifiedCard {
 
     $color = "Cyan"
     if ($risk -match "HIGH|TERROR|MURDER") { $color = "Red" }
-    elseif ($src -match "FBI" -or $risk -match "MEDIUM|FUGITIVE|DEFAULT") { $color = "Yellow" }
+    elseif ($src -match "FBI|Registry" -or $risk -match "MEDIUM|FUGITIVE|DEFAULT") { $color = "Yellow" }
     elseif ($risk -match "LOW") { $color = "Green" }
 
     # Crimes
@@ -505,7 +505,7 @@ function Invoke-BackgroundCheck {
                     $fbiAliases = "None"; if ($w.aliases -and @($w.aliases).Count -gt 0) { $fbiAliases = @($w.aliases) -join ", " }
                     $fbiSubjects = ""; if ($w.subjects -and @($w.subjects).Count -gt 0) { $fbiSubjects = @($w.subjects) -join ", " }
                     $fbiFieldOff = "N/A"; if ($w.field_offices -and @($w.field_offices).Count -gt 0) { $fbiFieldOff = (@($w.field_offices) -join ", ").ToUpper() }
-                    $fbiReward = "N/A"; if ($w.reward_max -and $w.reward_max -gt 0) { $fbiReward = "`$$($w.reward_max.ToString('N0'))" }
+                    $fbiReward = "N/A"; if ($w.reward_max -and $w.reward_max -gt 0) { $fbiReward = "$($w.reward_max.ToString('N0'))" }
                     $fbiHMin = $w.height_min; $fbiHMax = $w.height_max
                     $fbiHeight = "N/A"; if ($fbiHMin) { if ($fbiHMax -and $fbiHMax -ne $fbiHMin) { $fbiHeight = "$fbiHMin - $fbiHMax in" } else { $fbiHeight = "$fbiHMin in" } }
                     $fbiWMin = $w.weight_min; $fbiWMax = $w.weight_max
@@ -603,6 +603,7 @@ function Invoke-BackgroundCheck {
 $ToolMeta = @{
     Name             = "background_check"
     RendersToConsole = $true
+    Category    = @("Search and Discover")
     Behavior         = "Unified background check tool. Searches Sex Offender Registry, State Courts, and FBI Wanted simultaneously. Call ONLY after gathering firstName, lastName, and ideally state and DOB from the user."
     Description      = "Comprehensive background check across three public record sources: National Sex Offender Registry, Indiana State/Federal Courts, and FBI Wanted database."
     Parameters       = @{
@@ -612,7 +613,7 @@ $ToolMeta = @{
         dob        = "string (optional) - yyyymmdd"
         offset     = "int (optional) - pagination start, default 0"
         maxResults = "int (optional) - records per page, default 3"
-        action     = "string (optional) - 'full' (default), 'registry', 'court', 'fbi_wanted'"
+        action     = "string (optional) - full (default), registry, court, fbi_wanted"
         debug      = "bool (optional) - include raw API data in JSON output"
     }
     Example          = @"

@@ -32,6 +32,8 @@ function Invoke-ShellTool {
 
 $ToolMeta = @{
     Name        = "shell"
+    RendersToConsole = $false
+    Category    = @("System Administration", "Physical Computing")
     Behavior    = "Use this tool to execute shell commands via cmd.exe. Use with caution as it interacts directly with the system."
     Description = "Executes a shell command via cmd.exe."
     Parameters  = @{

@@ -3,7 +3,7 @@
 # Responsibility: Parses and validates AEL (ASCII Electronics Language) v0.3
 #                 circuits. Returns structured JSON errors for LLM self-correction.
 #                 Board-agnostic — works with any board definition.
-# Depends on: database/boards.json, database/components.json
+# Depends on: database/dev_boards.json, database/components.json
 # ===============================================
 
 # ====================== AEL GRAMMAR CONSTANTS ======================
@@ -205,7 +205,7 @@ function Resolve-Pin {
     param(
         [string]$pinRef,
         [hashtable]$parsed,
-        [hashtable]$boardData   # loaded from boards.json — alias -> board object
+        [hashtable]$boardData   # loaded from dev_boards.json — alias -> board object
     )
     # pinRef format: alias.PINNAME  or  compId.PINNAME
 
@@ -300,7 +300,7 @@ function Invoke-AELValidate {
     }
 
     # --- Load board database ---
-    $dbPath = Join-Path $scriptDir "database/boards.json"
+    $dbPath = Join-Path $scriptDir "database/dev_boards.json"
     $boardData = @{}
     if (Test-Path $dbPath) {
         try {
@@ -328,11 +328,11 @@ function Invoke-AELValidate {
                 valid    = $false
                 errors   = @(@{
                     line       = 0
-                    token      = "boards.json"
+                    token      = "dev_boards.json"
                     code       = "DATABASE_LOAD_FAILED"
                     severity   = "ERROR"
                     message    = "Failed to load board database: $($_.Exception.Message)"
-                    suggestion = "Ensure database/boards.json exists and is valid JSON"
+                    suggestion = "Ensure database/dev_boards.json exists and is valid JSON"
                 })
                 warnings = @()
                 summary  = "Database load failed"
@@ -341,11 +341,11 @@ function Invoke-AELValidate {
     } else {
         $warnings.Add(@{
             line       = 0
-            token      = "boards.json"
+            token      = "dev_boards.json"
             code       = "DATABASE_NOT_FOUND"
             severity   = "WARNING"
-            message    = "Board database not found at database/boards.json — board pin validation skipped"
-            suggestion = "Add database/boards.json for full validation"
+            message    = "Board database not found at database/dev_boards.json — board pin validation skipped"
+            suggestion = "Add database/dev_boards.json for full validation"
         })
     }
 
@@ -622,6 +622,8 @@ function Render-ValidationResult {
 
 $ToolMeta = @{
     Name        = "ael_validate"
+    RendersToConsole = $false
+    Category    = @("Physical Computing")
     Behavior    = "Validates AEL (ASCII Electronics Language) v0.3 circuit definitions. Parses BOARD, COMP, WIRE, POWER, BUS, and NET statements and returns structured JSON errors for self-correction. Board-agnostic — use with any board in the database."
     Description = "Parses and validates an AEL circuit string. Returns JSON with errors and warnings including line numbers, error codes, and fix suggestions."
     Parameters  = @{

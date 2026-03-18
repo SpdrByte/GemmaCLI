@@ -150,6 +150,8 @@ $_.Replace('.','░').Replace('#','█').Replace('P','♙').Replace('N','♘').R
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "chess"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Behavior    = "Stateful chess game. Always use this tool for any chess move so Gemma cannot play illegal moves."
     Description = "Full chess engine with Unicode board (♘ ♞ etc.), perfect legal-move validation, undo, and persistent state."
     Parameters  = @{

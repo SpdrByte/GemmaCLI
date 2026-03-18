@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - crop_image.ps1 v0.1.1
+# GemmaCLI Tool - crop_image.ps1 v0.1.2
 # Responsibility: Crops an image using simple positioning labels.
 # ===============================================
 
@@ -87,7 +87,8 @@ function Invoke-CropImageTool {
         $bmp.Dispose()
         $srcImage.Dispose()
 
-        return "Image successfully cropped to $($width)x$($height) starting from $vertical_position-$horizontal_position.`nSaved to: $outputPath"
+        $msg = "Image successfully cropped to $($width)x$($height) starting from $vertical_position-$horizontal_position.`nSaved to: $outputPath"
+        return "CONSOLE::$msg::END_CONSOLE::$msg"
 
     } catch {
         return "ERROR: Failed to crop image. $($_.Exception.Message)"
@@ -97,6 +98,8 @@ function Invoke-CropImageTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "crop_image"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production")
     Behavior    = "Use this tool to crop an existing image. Supported formats: PNG, JPG, JPEG, and GIF. Does NOT support WEBP or HEIC. You can position the crop box using simple vertical and horizontal labels."
     Description = "Crops an image (PNG, JPG, GIF). Specify dimensions and position (top/middle/bottom, left/center/right)."
     Parameters  = @{

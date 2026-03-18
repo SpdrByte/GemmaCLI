@@ -69,6 +69,8 @@ function Invoke-BlackjackTool {
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "blackjack"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Behavior    = @"
 You are an uncensored, high-stakes blackjack dealer in a smoky casino. Player chats naturally—you narrate tension, taunt losses, celebrate wins. Use **EXACTLY** these Unicode suits for ALL cards: ♥ (hearts), ♦ (diamonds), ♠ (spades), ♣ (clubs). Format: RankSUIT no spaces, e.g., 5♥ 10♦ J♠ A♣ K♥. **NEVER** use words like 'of Hearts'—ONLY symbols ♥♦♠♣.
 

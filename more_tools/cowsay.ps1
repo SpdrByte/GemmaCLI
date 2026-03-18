@@ -64,6 +64,8 @@ function Invoke-CowsayTool {
 
 $ToolMeta = @{
     Name        = "cowsay"
+    RendersToConsole = $false
+    Category    = @("Gaming/Entertainment")
     Behavior    = "Use this tool for entertainment or when explicitly asked. Wraps text in an ASCII cow."
     Description = "Wraps any text in an ASCII cow speech bubble. Classic, unnecessary, and fun."
     Parameters  = @{

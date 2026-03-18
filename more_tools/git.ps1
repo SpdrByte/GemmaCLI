@@ -71,9 +71,10 @@ function Invoke-GitTool {
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "git"
-    
-    Description = "Checks if git is initialized in the current directory and returns repository info"
-    
+    RendersToConsole = $false
+    Category    = @("System Administration", "Coding/Development")
+
+    Description = "Checks if git is initialized in the current directory and returns repository info"    
     Behavior    = "Use this tool when the user asks about git status, current branch, uncommitted changes, or repository information. Safe read-only operation."
     
     Parameters  = @{

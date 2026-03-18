@@ -23,6 +23,8 @@ function Invoke-CoinGeckoTool {
 
 $ToolMeta = @{
     Name        = "coingecko"
+    RendersToConsole = $false
+    Category    = @("Search and Discover")
     Behavior    = "Use this tool to get the current price of a cryptocurrency. It is the best tool for financial data."
     Description = "Fetches cryptocurrency prices from the CoinGecko API."
     Parameters  = @{

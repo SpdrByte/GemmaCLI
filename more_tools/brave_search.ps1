@@ -37,6 +37,8 @@ function Invoke-BraveSearchTool {
 
 $ToolMeta = @{
     Name        = "brave_search"
+    RendersToConsole = $false
+    Category    = @("Search and Discover")
     Behavior    = "Use this tool for in-depth web research. It provides a list of search results with summaries."
     Description = "A privacy-first web search using the Brave Search API."
     Parameters  = @{
