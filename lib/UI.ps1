@@ -43,7 +43,8 @@ function Get-StatusBarText {
     param($s = $script:lastStatus)
     $barWidth  = 16
     
-    $ctxPct = if ($CONTEXT_WINDOW -gt 0) { $s.total / $CONTEXT_WINDOW } else { 0 }
+    $limit = if ($script:CONTEXT_LIMIT) { $script:CONTEXT_LIMIT } else { 15000 }
+    $ctxPct = if ($limit -gt 0) { $s.total / $limit } else { 0 }
     if ($ctxPct -gt 1.0) { $ctxPct = 1.0 }
     
     $maxOut = $script:GUARDRAILS.maxOutputTokens

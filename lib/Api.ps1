@@ -138,7 +138,7 @@ function Invoke-GemmaApiWithRetry {
             $isQuota = $resp.apiError -match "429|quota|RESOURCE_EXHAUSTED"
             if (-not $isQuota -or $attempt -eq 2) { return $resp }
 
-            # On first quota failure: check token count and trim if over 11K
+            # On first quota failure: check token count and trim if over threshold
             Stop-Spinner
             if ($attempt -eq 0) {
                 $tokenEst = 0
@@ -147,9 +147,10 @@ function Invoke-GemmaApiWithRetry {
                         if ($part.text) { $tokenEst += [int]($part.text.Length / 4) }
                     }
                 }
-                if ($tokenEst -gt 11000) {
-                    if ($script:debugMode) { Write-Host " [Retry] Token estimate $tokenEst > 11000 - trimming before retry" -ForegroundColor DarkYellow }
-                    $historyRef.Value = Trim-History -hist $historyRef.Value -tokenBudget 11000
+                $threshold = if ($script:TRIM_THRESHOLD) { $script:TRIM_THRESHOLD } else { 11000 }
+                if ($tokenEst -gt $threshold) {
+                    if ($script:debugMode) { Write-Host " [Retry] Token estimate $tokenEst > $threshold - trimming before retry" -ForegroundColor DarkYellow }
+                    $historyRef.Value = Trim-History -hist $historyRef.Value -tokenBudget $threshold
                 }
             }
 
