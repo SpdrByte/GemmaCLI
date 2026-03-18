@@ -38,6 +38,8 @@ function Invoke-CreateDirectoryTool {
 
 $ToolMeta = @{
     Name        = "create_directory"
+    RendersToConsole = $false
+    Category    = @("System Administration")
     Behavior    = "Use this tool to create a new directory. This is useful for organizing files or preparing for a new project."
     Description = "Creates a new directory at the specified path, including any missing parent directories. Use this before writing files to a location that may not exist yet."
     Parameters  = @{

@@ -19,6 +19,8 @@ function Invoke-ReadFileTool {
 # Standard metadata block for registration
 $ToolMeta = @{
     Name        = "readfile"
+    RendersToConsole = $false
+    Category    = @("System Administration", "Coding/Development", "Memory Management")
     Behavior    = "Use this tool to read the contents of a file. Before using, it is good practice to verify the file exists using the `searchdir` tool."
     Description = "Reads the full raw text content of any local file."
     Parameters  = @{

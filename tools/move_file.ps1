@@ -22,6 +22,8 @@ function Invoke-MoveFileTool {
 
 $ToolMeta = @{
     Name        = "move_file"
+    RendersToConsole = $false
+    Category    = @("System Administration")
     Behavior    = "Use this tool to move or rename a file. This is the primary tool for file organization."
     Description = "Moves or renames a file."
     Parameters  = @{

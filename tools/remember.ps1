@@ -55,6 +55,8 @@ function Invoke-RememberTool {
 
 $ToolMeta = @{
     Name        = "remember"
+    RendersToConsole = $false
+    Category    = @("Memory Management")
     Behavior    = "Use this tool to memorize a specific piece of information the user tells you. This is for long-term memory across sessions."
     Description = "Remembers a single fact and saves it to a local memory file. Use this when the user explicitly tells you to remember something about them or their preferences."
     Parameters  = @{

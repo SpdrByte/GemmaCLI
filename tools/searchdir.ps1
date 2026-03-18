@@ -43,6 +43,8 @@ function Invoke-SearchDirTool {
 
 $ToolMeta = @{
     Name        = "searchdir"
+    RendersToConsole = $false
+    Category    = @("System Administration", "Search and Discover")
     Behavior    = "Use this tool to find files or directories. It is useful for exploring the file system and locating specific files."
     Description = "Searches a directory for files and folders matching a specific name or wildcard pattern. Can search recursively."
     Parameters  = @{

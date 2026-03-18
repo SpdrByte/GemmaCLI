@@ -35,6 +35,8 @@ function Invoke-WriteFileTool {
 
 $ToolMeta = @{
     Name        = "writefile"
+    RendersToConsole = $false
+    Category    = @("System Administration", "Coding/Development")
     Behavior    = "Use this tool to write content to a file. It can create a new file or overwrite an existing one. This is the primary tool for creating or modifying files."
     Description = "Writes or overwrites the entire content of a file. Creates the file and any necessary parent directories if they do not exist."
     Parameters  = @{

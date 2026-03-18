@@ -60,6 +60,8 @@ function Invoke-WriteFileTool {
         }
 
         Set-Content -Path $file_path -Value $content -Encoding UTF8 -Force -ErrorAction Stop
+        
+        # Standard result format:
         return "OK: Wrote $($content.Length) characters to '$file_path'"
 
     } catch {
@@ -73,6 +75,11 @@ function Invoke-WriteFileTool {
 $ToolMeta = @{
     # The name Gemma uses in its <tool_call> JSON (lowercase, no spaces)
     Name        = "writefile"
+
+    # RendersToConsole: 
+    # $false (default) -> Shows an "Executing..." spinner while running.
+    # $true            -> Hides the spinner (use if your tool draws its own UI).
+    RendersToConsole = $false
 
     # Behavior: Detailed instructions for the model on HOW and WHEN to use this tool.
     # Injected into the system prompt for high-reasoning models (e.g., 27B).
@@ -102,13 +109,28 @@ $ToolMeta = @{
 }
 ```
 
-### Why splatting (`@params`) works now
+---
 
-In earlier versions, you had to pass parameters explicitly because Gemma returned a `PSCustomObject`. In v0.5.0, the CLI's main loop automatically converts the model's JSON into a **PowerShell Hashtable** before calling your `Execute` block. This allows for clean, one-line execution:
+## Advanced Features
+
+### 1. Console vs. Model Communication
+You can return text that is shown to the user but hidden from the model (e.g., for ASCII art or UI elements) using the `CONSOLE::` tag:
 
 ```powershell
-# ✓ Modern & Clean
-Execute = { param($params) Invoke-WriteFileTool @params }
+return "CONSOLE::(This text appears in the CLI only)::END_CONSOLE::(This text goes to Gemma)"
+```
+
+### 2. Multi-Tier Guidance
+You can provide different instructions based on model size (e.g., simplified for 4B, detailed for 27B) by adding these properties to `$ToolMeta`:
+
+- `ToolUseGuidanceMajor`: Detailed guidance for high-capacity models (27B, 12B).
+- `ToolUseGuidanceMinor`: Simplified guidance for smaller models (4B, 1B).
+
+### 3. Returning Images (Multimodal)
+Tools can return images to Gemma's vision system by using the `IMAGE_DATA` protocol:
+
+```powershell
+return "IMAGE_DATA::$mimeType::$base64Data::$optionalPrompt"
 ```
 
 ---
@@ -124,7 +146,7 @@ The CLI uses a dynamic instruction system. Ensure your `instructions.json` conta
 }
 ```
 
-When the script starts, `ToolLoader.ps1` reads your `writefile.ps1`, extracts the metadata, and injects it directly into the prompt. **You no longer need to manually list tools in the JSON file.**
+When the script starts, `ToolLoader.ps1` reads your `.ps1` files in `tools/`, extracts the metadata, and injects it directly into the prompt. **You no longer need to manually list tools in the JSON file.**
 
 ---
 
@@ -144,9 +166,9 @@ When the script starts, `ToolLoader.ps1` reads your `writefile.ps1`, extracts th
 
 ```
 □ tools/writefile.ps1 created with UTF-8 encoding
-□ $ToolMeta contains Name, Behavior, Description, Parameters, Example, FormatLabel, and Execute
+□ $ToolMeta contains Name, RendersToConsole, Behavior, Description, etc.
 □ Execute block uses @params splatting for cleanliness
-□ Function returns "OK: ..." or "ERROR: ..." strings
+□ Function returns "OK: ..." or "ERROR: ..." strings (or uses CONSOLE:: protocol)
 □ instructions.json contains the %%AVAILABLE_TOOLS%% placeholder
 □ Startup shows "[OK] Loaded tool: writefile"
 □ End-to-end test passed
@@ -162,6 +184,7 @@ When the script starts, `ToolLoader.ps1` reads your `writefile.ps1`, extracts th
 function Invoke-MyTool {
     param([string]$target)
     try {
+        # Optional: return "CONSOLE::UI text::END_CONSOLE::Model text"
         return "OK: Handled $target"
     } catch {
         return "ERROR: $($_.Exception.Message)"
@@ -169,12 +192,13 @@ function Invoke-MyTool {
 }
 
 $ToolMeta = @{
-    Name        = "mytool"
-    Behavior    = "Use this tool when the user needs X."
-    Description = "Does X to the target."
-    Parameters  = @{ target = "string - the thing to act upon" }
-    Example     = "<tool_call>{ ""name"": ""mytool"", ""parameters"": { ""target"": ""abc"" } }</tool_call>"
-    FormatLabel = { param($p) "🚀 mytool -> $($p.target)" }
-    Execute     = { param($p) Invoke-MyTool @p }
+    Name             = "mytool"
+    RendersToConsole = $false
+    Behavior         = "Use this tool when the user needs X."
+    Description      = "Does X to the target."
+    Parameters       = @{ target = "string - the thing to act upon" }
+    Example          = "<tool_call>{ ""name"": ""mytool"", ""parameters"": { ""target"": ""abc"" } }</tool_call>"
+    FormatLabel      = { param($p) "🚀 mytool -> $($p.target)" }
+    Execute          = { param($p) Invoke-MyTool @p }
 }
 ```
