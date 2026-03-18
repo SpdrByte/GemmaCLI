@@ -1,13 +1,13 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.5.3](https://img.shields.io/badge/Version-0.5x-green)
+![Version: 0.6.0](https://img.shields.io/badge/Version-0.6.0-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
 ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)
 [![Website](https://img.shields.io/badge/Web-SpdrByte.com-orange)](https://spdrbyte.com)
 
-Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family.  It's designed to work seamlessly with both the free and paid tiers of the Google AI Studio API, offering flexibility and scalability. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, workflow automation, and professional image generation.
+Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, physical computing, and professional image generation.
 
 ---
 
@@ -16,6 +16,29 @@ Gemma CLI is a high-performance, extensible terminal workstation designed for Go
 ![Gemma CLI Terminal User Interface](assets/GemmaCLI_Screenshot.png)
 
 The CLI features a custom-built rendering engine that provides structured feedback through color-coded status boxes, a real-time system status bar, and interactive menus.
+
+---
+
+## 🛠️ Tool Library (35+)
+
+Gemma CLI features a massive suite of specialized tools.
+
+### Featured Tools
+| <img src="assets/Tools/adventure_tool.png" width="150"> | <img src="assets/Tools/ai-therapist_tool.png" width="150"> | <img src="assets/Tools/calculator_tool.png" width="150"> | <img src="assets/Tools/chess_tool.png" width="150"> |
+| :---: | :---: | :---: | :---: |
+| **Adventure**<br>RPG state engine | **AI Therapist**<br>Counseling mode | **Calculator**<br>High-precision math | **Chess**<br>Stateful game |
+| <img src="assets/Tools/persona_tool.png" width="150"> | <img src="assets/Tools/roll_dice_tool.png" width="150"> | <img src="assets/Tools/searchdir_tool.png" width="150"> | |
+| **Persona**<br>Expert database | **Roll Dice**<br>Visual mechanics | **SearchDir**<br>System discovery | |
+
+### All Categories
+1. **System Administration**: `shell`, `git`, `searchdir`, `move_file`, `create_directory`, `writefile`, `readfile`
+2. **Coding/Development**: `code_analyzer`, `compare_ps1`, `create_tool`, `build_site`, `git`, `calculator`, `writefile`, `readfile`
+3. **Search and Discover**: `brave_search`, `browse_web`, `http_get`, `coingecko`, `lookup`, `searchdir`, `background_check`
+4. **Digital Media Production**: `nanobanana`, `resize_image`, `crop_image`, `view_image`, `write_story`, `write_script`
+5. **Physical Computing**: `arduino_boards`, `esp_boards`, `ael_validate`, `shell`, `http_get`
+6. **Help/Consultation**: `ai_therapist`, `calculator`, `persona`, `write_story`, `summarize_context`
+7. **Memory Management**: `remember`, `summarize_context`, `readfile`
+8. **Gaming/Entertainment**: `adventure`, `chess`, `blackjack`, `roll_dice`, `cowsay`, `randomname`, `nanobanana`, `persona`
 
 ---
 
@@ -73,6 +96,7 @@ Gemma CLI extends standard chat with a suite of management commands.
 | `/tools` | List all active and loaded tools with their parameters |
 | `/multiline` | Multiline for coding, pasting multiple lines |
 | `/settings` | Toggle UI color schemes and manage active/inactive tools |
+| `/speak [m/f]` | Toggle Text-to-Speech (TTS) output (Male/Female) |
 | `/customCommand` | Manage custom prompt aliases (e.g., `/poem`, `/fixcode`) |
 | `/recall` | Inject long-term memories from previous sessions into context |
 | `/debug` | Toggle verbose raw API response and tool-calling logs |
@@ -188,10 +212,10 @@ In practice this means Gemma can receive a high-level instruction like "find all
 *   **Q: Is this free?**
     A: Yes. The CLI itself is open-source under AGPL-3.0. It's designed to work with the Google AI Studio API, which offers both a free tier and paid options. While you can use Gemma CLI entirely with the free tier, upgrading to a paid plan unlocks higher rate limits and increased usage capacity. Gemma CLI automatically manages rate limits for both tiers.
 
-*   Q: Why use Gemma when you can make Gemini calls on the same free API?
+*   **Q: Why use Gemma when you can make Gemini calls on the same free API?**
     A: Quota isolation and performance. Each model (Gemma and Gemini) has its own rate limits, whether you're using the free or paid tiers. The dual-agent pipeline leverages this to maintain responsiveness even when one model is experiencing rate limits. Paid tiers offer significantly higher rate limits for both models. Unlike Gemini, Gemma can be ran locally with no rate limiting.
 
-*   Q: Can Gemma create her own tools?
+*   **Q: Can Gemma create her own tools?**
     A: Yes. Gemma can write the code for new tools - she knows the tool structure and can produce a complete, ready-to-deploy .ps1 file. Hypothetically limitless capability! (arduino-cli implementation - on the roadmap.
 
 ---
@@ -208,7 +232,7 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 * Speech to text feature
 
-* Text to Speech feature
+* Text to Speech feature ✓
 
 * Image generation ✓
 

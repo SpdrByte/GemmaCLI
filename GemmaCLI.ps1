@@ -231,6 +231,7 @@ Write-Host ""
 $helpLines = @(
     "/help              $ARR Show all commands",
     "/clear             $ARR Reset conversation",
+    "/speak [m/f]       $ARR Toggle Text-to-Speech (TTS) output",
     "/recall            $ARR Load memories from previous sessions",
     "/multiline         $ARR Multiline mode - end with /end",
     "/model [id]        $ARR Switch model / pass id directly",
@@ -244,7 +245,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.5.5 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.6.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -318,6 +319,54 @@ while ($true) {
     if ($userInput -eq "/clear") {
         $script:history = @($script:history[0])
         Draw-Box @("$CHK  Conversation cleared.") -Color Yellow
+        continue
+    }
+
+    if ($userInput -match '^/speak\s*(.*)$') {
+        $arg = $matches[1].Trim().ToLower()
+        
+        if ($arg -eq "male" -or $arg -eq "m" -or $arg -eq "female" -or $arg -eq "f") {
+            $script:ttsEnabled = $true
+            $voiceName = if ($arg -eq "male") { "Microsoft David Desktop" } else { "Microsoft Zira Desktop" }
+            $label = if ($arg -eq "male" -or $arg -eq "m") { "David (Male)" } else { "Zira (Female)" }
+
+            if (-not $global:GemmaTTS) {
+                try {
+                    Add-Type -AssemblyName System.Speech
+                    $global:GemmaTTS = New-Object System.Speech.Synthesis.SpeechSynthesizer
+                } catch {
+                    Write-Host "  [!] Could not initialize Windows TTS." -ForegroundColor Red
+                    $script:ttsEnabled = $false
+                    continue
+                }
+            }
+            
+            try {
+                $global:GemmaTTS.SelectVoice($voiceName)
+                Draw-Box @("$CHK  Text-to-Speech ON (Voice: $label)") -Color Magenta
+            } catch {
+                Write-Host "  [!] Voice '$voiceName' not found." -ForegroundColor Red
+            }
+            continue
+        }
+
+        # Original toggle logic
+        $script:ttsEnabled = -not $script:ttsEnabled
+        $state = if ($script:ttsEnabled) { "ON" } else { "OFF" }
+        Draw-Box @("$CHK  Text-to-Speech $state") -Color Magenta
+        
+        # Initialize the synthesizer if turning on for the first time
+        if ($script:ttsEnabled -and -not $global:GemmaTTS) {
+            try {
+                Add-Type -AssemblyName System.Speech
+                $global:GemmaTTS = New-Object System.Speech.Synthesis.SpeechSynthesizer
+                # Attempt to use a female voice if available
+                $global:GemmaTTS.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female)
+            } catch {
+                Write-Host "  [!] Could not initialize Windows TTS. It may not be supported on this system." -ForegroundColor Red
+                $script:ttsEnabled = $false
+            }
+        }
         continue
     }
 
@@ -419,10 +468,37 @@ while ($true) {
                 $enabledTools = @(Get-ChildItem -Path "tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Enabled" } })
                 $disabledTools = @(Get-ChildItem -Path "more_tools" -Filter "*.ps1" | ForEach-Object { @{ Name = $_.BaseName; Status = "Disabled" } })
                 $allTools = $enabledTools + $disabledTools
-                $toolOptions = $allTools | ForEach-Object { "$($_.Name) ($($_.Status))" }
-                $toolChoice = Show-ArrowMenu -Options $toolOptions -Title "Tool Management"
-                if ($toolChoice -ge 0) {
-                    $selectedTool = $allTools[$toolChoice]
+                
+                $pageSize = 12
+                $pageIdx = 0
+                
+                while ($true) {
+                    $startIdx = $pageIdx * $pageSize
+                    $endIdx = [math]::Min($startIdx + $pageSize - 1, $allTools.Count - 1)
+                    $currentPageTools = $allTools[$startIdx..$endIdx]
+                    
+                    $toolOptions = $currentPageTools | ForEach-Object { "$($_.Name) ($($_.Status))" }
+                    
+                    $hasPrev = $pageIdx -gt 0
+                    $hasNext = ($startIdx + $pageSize) -lt $allTools.Count
+                    
+                    if ($hasPrev) { $toolOptions += "< Previous Page" }
+                    if ($hasNext) { $toolOptions += "> Next Page" }
+                    $toolOptions += "[ Exit ]"
+                    
+                    $totalPages = [math]::Ceiling($allTools.Count / $pageSize)
+                    $titleStr = "Tool Management  $BUL  Page $($pageIdx + 1) of $totalPages"
+                    
+                    $toolChoice = Show-ArrowMenu -Options $toolOptions -Title $titleStr
+                    if ($toolChoice -lt 0) { break } # Esc pressed
+                    
+                    $selectedStr = $toolOptions[$toolChoice]
+                    if ($selectedStr -eq "[ Exit ]") { break }
+                    elseif ($selectedStr -eq "< Previous Page") { $pageIdx--; continue }
+                    elseif ($selectedStr -eq "> Next Page") { $pageIdx++; continue }
+                    
+                    # They selected an actual tool
+                    $selectedTool = $currentPageTools[$toolChoice]
                     $enabledCount = ($allTools | Where-Object { $_.Status -eq "Enabled" }).Count
                     $limit = $script:TOOL_LIMITS[$script:MODEL]
 
@@ -441,6 +517,7 @@ while ($true) {
                             Draw-Box @("Tool '$($selectedTool.Name)' enabled. Restart GemmaCLI to refresh tools.") -Color Yellow
                         }
                     }
+                    break # Exit the loop after toggling
                 }
             }
             2 {
@@ -760,11 +837,13 @@ while ($true) {
 
                 # Execute tool directly in the main session as in 019
                 # but with a simple Esc check loop if possible
+                
+                # Standardize delay after confirmation to ensure API stability and UI readability
+                Stop-Spinner
+                Start-Sleep -Milliseconds 160
+
                 $isRenderingTool = $tool.RendersToConsole -eq $true
-                if ($isRenderingTool) {
-                    Stop-Spinner
-                    Start-Sleep -Milliseconds 160
-                } else {
+                if (-not $isRenderingTool) {
                     Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
                 }
 
@@ -858,9 +937,21 @@ while ($true) {
                 $hasConsolePart = $false
                 if ($result -match "(?s)^CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
                     $hasConsolePart = $true
-                    $consoleText = Convert-ToHyperlink -Text $matches[1]
-                    Write-Host $consoleText -ForegroundColor DarkGray
+                    $consoleRaw = $matches[1]
                     $result = $matches[2].Trim()
+
+                    # Handle inline instructions like SET_VOICE
+                    if ($consoleRaw -match "SET_VOICE:(David|Zira)") {
+                        $voiceName = if ($matches[1] -eq "David") { "Microsoft David Desktop" } else { "Microsoft Zira Desktop" }
+                        if ($global:GemmaTTS) {
+                            try { $global:GemmaTTS.SelectVoice($voiceName) } catch {}
+                        }
+                        # Strip the instruction from the displayed console text
+                        $consoleRaw = $consoleRaw -replace "::SET_VOICE:(David|Zira)", ""
+                    }
+
+                    $consoleText = Convert-ToHyperlink -Text $consoleRaw
+                    Write-Host $consoleText -ForegroundColor DarkGray
                     if (-not $result) { $result = "(empty result)" }
                 }
 
@@ -896,6 +987,18 @@ while ($true) {
             }
             $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
             Render-ModelText -text $modelText
+            
+            if ($script:ttsEnabled -and $global:GemmaTTS) {
+                try {
+                    $global:GemmaTTS.SpeakAsyncCancelAll()
+                    # Strip markdown bold/italics and code blocks for cleaner speech
+                    $speakText = $modelText -replace '(?s)<code_block>.*?</code_block>', ' [Code block omitted] '
+                    $speakText = $speakText -replace '(?s)```.*?```', ' [Code block omitted] '
+                    $speakText = $speakText -replace '\*\*', ''
+                    $speakText = $speakText -replace '\*', ''
+                    $global:GemmaTTS.SpeakAsync($speakText) | Out-Null
+                } catch { }
+            }
             break
         }
     }
