@@ -24,11 +24,11 @@ The CLI features a custom-built rendering engine that provides structured feedba
 Gemma CLI features a massive suite of specialized tools.
 
 ### Featured Tools
-| <img src="assets/Tools/adventure_tool.png" width="150"> | <img src="assets/Tools/ai-therapist_tool.png" width="150"> | <img src="assets/Tools/calculator_tool.png" width="150"> | <img src="assets/Tools/chess_tool.png" width="150"> |
+| <img src="assets/Tools/adventure_tool.png" width="150"> | <img src="assets/Tools/ai-therapist_tool.png" width="150"> | <img src="assets/Tools/calculator_tool.png" width="150"> | <img src="assets/Tools/chess_tool.png" width="150"> | 
 | :---: | :---: | :---: | :---: |
 | **Adventure**<br>RPG state engine | **AI Therapist**<br>Counseling mode | **Calculator**<br>High-precision math | **Chess**<br>Stateful game |
-| <img src="assets/Tools/persona_tool.png" width="150"> | <img src="assets/Tools/roll_dice_tool.png" width="150"> | <img src="assets/Tools/searchdir_tool.png" width="150"> | |
-| **Persona**<br>Expert database | **Roll Dice**<br>Visual mechanics | **SearchDir**<br>System discovery | |
+| <img src="assets/Tools/persona_tool.png" width="150"> | <img src="assets/Tools/roll_dice_tool.png" width="150"> | <img src="assets/Tools/searchdir_tool.png" width="150"> | <img src="assets/Tools/background_check_tool.png" width="150"> |
+| **Persona**<br>AI Personalities | **Roll Dice**<br>d4 d6 d8 d10 d12 d20 + | **SearchDir**<br>System discovery | **Background Check**<br>Criminal background check |
 
 ### All Categories
 1. **System Administration**: `shell`, `git`, `searchdir`, `move_file`, `create_directory`, `writefile`, `readfile`
