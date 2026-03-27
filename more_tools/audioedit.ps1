@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - audioedit.ps1 v1.0.4
+# GemmaCLI Tool - audioedit.ps1 v1.3.0
 # Responsibility: Audio editing via FFmpeg (Gyan.FFmpeg v8.1+)
 # Supported operations:
 #   trim        - Cut a clip by start time and duration/end
@@ -100,11 +100,27 @@ function Run-FFmpeg {
     $psi.UseShellExecute        = $false
     $psi.CreateNoWindow         = $true
 
-    $proc   = [System.Diagnostics.Process]::Start($psi)
-    $stdout = $proc.StandardOutput.ReadToEnd()
-    $stderr = $proc.StandardError.ReadToEnd()
+    $proc = [System.Diagnostics.Process]::Start($psi)
+
+    # CRITICAL: Must read stdout and stderr asynchronously to avoid deadlock.
+    # FFmpeg writes continuous progress to stderr. If we call ReadToEnd()
+    # sequentially, the first call blocks until the stream closes, but FFmpeg
+    # won't close its streams until it exits, and it won't exit because the
+    # OTHER stream's buffer is full and nobody is draining it. The process
+    # hangs forever with no error. Async tasks drain both streams concurrently.
+    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
+
     $proc.WaitForExit()
-    return @{ ExitCode = $proc.ExitCode; Stdout = $stdout; Stderr = $stderr }
+
+    # Wait for both async reads to complete now that the process has exited
+    [System.Threading.Tasks.Task]::WaitAll($stdoutTask, $stderrTask)
+
+    return @{
+        ExitCode = $proc.ExitCode
+        Stdout   = $stdoutTask.Result
+        Stderr   = $stderrTask.Result
+    }
 }
 
 # ── Operation Functions ──────────────────────────────────────────────────────
@@ -112,14 +128,14 @@ function Run-FFmpeg {
 function Op-Trim {
     param($ffmpeg, [string]$file_path, [string]$start, [string]$end_time, [string]$duration)
     if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
-    if (-not $start) { return "ERROR: 'start' is required for trim (e.g. '00:00:10' or '10')." }
-    if (-not $end_time -and -not $duration) { return "ERROR: Provide either 'end_time' or 'duration'." }
+    if ([string]::IsNullOrWhiteSpace($start)) { return "ERROR: 'start' is required for trim (e.g. '00:00:10' or '10')." }
+    # end_time and duration are both optional — omitting both trims from $start to the end of file.
 
     $out = Get-AudioOutputPath $file_path "trimmed"
-    $ffArgs = @("-y", "-ss", $start)
-    if ($duration) { $ffArgs += @("-t", $duration) }
-    elseif ($end_time) { $ffArgs += @("-to", $end_time) }
-    $ffArgs += @("-i", $file_path, "-c", "copy", $out)
+    $ffArgs = @("-y", "-ss", $start, "-i", $file_path)
+    if ($duration)      { $ffArgs += @("-t", $duration) }
+    elseif ($end_time)  { $ffArgs += @("-to", $end_time) }
+    $ffArgs += @("-c", "copy", $out)
 
     $r = Run-FFmpeg $ffmpeg $ffArgs
     if ($r.ExitCode -ne 0) { return "ERROR: FFmpeg trim failed.`n$($r.Stderr)" }
@@ -129,7 +145,7 @@ function Op-Trim {
 function Op-Split {
     param($ffmpeg, [string]$file_path, [string]$split_at)
     if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
-    if (-not $split_at) { return "ERROR: 'split_at' timestamp is required (e.g. '00:01:30')." }
+    if ([string]::IsNullOrWhiteSpace($split_at)) { return "ERROR: 'split_at' timestamp is required (e.g. '00:01:30')." }
 
     $dir  = [System.IO.Path]::GetDirectoryName($file_path)
     $base = [System.IO.Path]::GetFileNameWithoutExtension($file_path)
@@ -148,29 +164,152 @@ function Op-Split {
     return "CONSOLE::$msg::END_CONSOLE::OK: Split complete. Part 1: '$out1' | Part 2: '$out2'"
 }
 
+function Write-ConcatList {
+    # Shared helper — writes a BOM-free UTF-8 concat list file for FFmpeg.
+    param([string[]]$files)
+    $listFile  = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), ".txt")
+    $lines     = $files | ForEach-Object { "file '$($_.Replace('\', '/'))'" }
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllLines($listFile, $lines, $utf8NoBom)
+    return $listFile
+}
+
+function Op-Insert {
+    # Replaces a section of audio (insert_start to insert_end) with a new clip,
+    # handling the full part_A / new_clip / part_B pipeline in one atomic call.
+    param($ffmpeg, [string]$file_path, [string]$insert_clip, [string]$insert_start, [string]$insert_end)
+
+    if ([string]::IsNullOrWhiteSpace($file_path))   { return "ERROR: 'file_path' is required." }
+    if ([string]::IsNullOrWhiteSpace($insert_clip))  { return "ERROR: 'insert_clip' is required — path to the audio clip to insert." }
+    if ([string]::IsNullOrWhiteSpace($insert_start)) { return "ERROR: 'insert_start' is required (e.g. '00:05:00')." }
+    if (-not (Test-Path $file_path))   { return "ERROR: Source file not found: '$file_path'" }
+    if (-not (Test-Path $insert_clip)) { return "ERROR: Insert clip not found: '$insert_clip'" }
+    # insert_end is optional — if omitted, the clip is inserted at insert_start with nothing removed.
+    # If provided, the section from insert_start to insert_end is replaced by the clip.
+    if ([string]::IsNullOrWhiteSpace($insert_end)) { $insert_end = $insert_start }
+
+    $dir  = [System.IO.Path]::GetDirectoryName($file_path)
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($file_path)
+    $ext  = [System.IO.Path]::GetExtension($file_path)
+    $ts   = (Get-Date).ToString("yyyyMMdd_HHmmss")
+
+    $partA = Join-Path $dir "$($base)_insertA_$ts$ext"
+    $partB = Join-Path $dir "$($base)_insertB_$ts$ext"
+    $out   = Join-Path $dir "$($base)_inserted_$ts$ext"
+
+    try {
+        # Part A: beginning of original up to insert_start
+        $rA = Run-FFmpeg $ffmpeg @("-y", "-i", $file_path, "-to", $insert_start, "-c", "copy", $partA)
+        if ($rA.ExitCode -ne 0) { return "ERROR: Failed to extract part A (before insert point).`n$($rA.Stderr)" }
+
+        # Part B: original from insert_end to the end of file — no -to/-t means run to EOF
+        $rB = Run-FFmpeg $ffmpeg @("-y", "-ss", $insert_end, "-i", $file_path, "-c", "copy", $partB)
+        if ($rB.ExitCode -ne 0) { return "ERROR: Failed to extract part B (after replaced section).`n$($rB.Stderr)" }
+
+        # Concat: part_A + insert_clip + part_B
+        $listFile = Write-ConcatList @($partA, $insert_clip, $partB)
+        $rC = Run-FFmpeg $ffmpeg @("-y", "-f", "concat", "-safe", "0", "-i", $listFile, "-c", "copy", $out)
+        Remove-Item $listFile -Force -ErrorAction SilentlyContinue
+
+        if ($rC.ExitCode -ne 0) { return "ERROR: Failed to join parts.`n$($rC.Stderr)" }
+
+        $msg = "✅ Inserted '$([System.IO.Path]::GetFileName($insert_clip))' at $insert_start (replacing $insert_start-$insert_end)`n   Output: $out"
+        return "CONSOLE::$msg::END_CONSOLE::OK: Insert complete. Output: '$out'"
+
+    } finally {
+        # Clean up temp parts whether we succeeded or failed
+        Remove-Item $partA -Force -ErrorAction SilentlyContinue
+        Remove-Item $partB -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Op-Overwrite {
+    # Pastes a clip OVER the original audio at a given timestamp.
+    # The original timeline length is preserved — the clip replaces whatever
+    # was underneath it for the clip's exact duration. No filter_complex needed.
+    #
+    # Technique: concat-based (same as insert), no re-encode:
+    #   part_A  = original from 0 to overwrite_at              (stream copy)
+    #   part_OW = the overwrite clip as-is
+    #   part_B  = original from (overwrite_at + clip_duration) to EOF  (stream copy)
+    #   concat part_A + part_OW + part_B
+    param($ffmpeg, $ffprobe, [string]$file_path, [string]$overwrite_clip, [string]$overwrite_at)
+
+    if ([string]::IsNullOrWhiteSpace($file_path))      { return "ERROR: 'file_path' is required." }
+    if ([string]::IsNullOrWhiteSpace($overwrite_clip)) { return "ERROR: 'overwrite_clip' is required — path to the clip to paste over the original." }
+    if ([string]::IsNullOrWhiteSpace($overwrite_at))   { return "ERROR: 'overwrite_at' is required — timestamp where the overwrite begins (e.g. '00:05:00' or '300')." }
+    if (-not (Test-Path $file_path))      { return "ERROR: Source file not found: '$file_path'" }
+    if (-not (Test-Path $overwrite_clip)) { return "ERROR: Overwrite clip not found: '$overwrite_clip'" }
+
+    # Measure the overwrite clip duration — we need it to calculate where part_B starts.
+    $probeResult = Run-FFmpeg $ffprobe @("-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", $overwrite_clip)
+    if ($probeResult.ExitCode -ne 0 -or $probeResult.Stdout.Trim() -notmatch "^[\d.]+$") {
+        return "ERROR: Could not determine duration of overwrite clip (ffprobe failed).`n$($probeResult.Stderr)"
+    }
+    $clipDuration = [double]$probeResult.Stdout.Trim()
+
+    # Convert overwrite_at to seconds for arithmetic.
+    # Accepts HH:MM:SS, MM:SS, or plain seconds.
+    $startSec = 0.0
+    if ($overwrite_at -match '^(\d+):(\d+):(\d+(?:\.\d+)?)$') {
+        $startSec = [int]$matches[1] * 3600 + [int]$matches[2] * 60 + [double]$matches[3]
+    } elseif ($overwrite_at -match '^(\d+):(\d+(?:\.\d+)?)$') {
+        $startSec = [int]$matches[1] * 60 + [double]$matches[2]
+    } elseif ($overwrite_at -match '^[\d.]+$') {
+        $startSec = [double]$overwrite_at
+    } else {
+        return "ERROR: Could not parse 'overwrite_at' timestamp: '$overwrite_at'. Use HH:MM:SS, MM:SS, or seconds."
+    }
+
+    $ic       = [System.Globalization.CultureInfo]::InvariantCulture
+    $endSec   = $startSec + $clipDuration
+    $endStr   = $endSec.ToString('F6', $ic)
+
+    $dir   = [System.IO.Path]::GetDirectoryName($file_path)
+    $base  = [System.IO.Path]::GetFileNameWithoutExtension($file_path)
+    $ext   = [System.IO.Path]::GetExtension($file_path)
+    $ts    = (Get-Date).ToString("yyyyMMdd_HHmmss")
+
+    $partA = Join-Path $dir "$($base)_owA_$ts$ext"
+    $partB = Join-Path $dir "$($base)_owB_$ts$ext"
+    $out   = Join-Path $dir "$($base)_overwritten_$ts$ext"
+
+    try {
+        # Part A: original from start up to overwrite_at (stream copy, fast)
+        $rA = Run-FFmpeg $ffmpeg @("-y", "-i", $file_path, "-to", $overwrite_at, "-c", "copy", $partA)
+        if ($rA.ExitCode -ne 0) { return "ERROR: Failed to extract part A.`n$($rA.Stderr)" }
+
+        # Part B: original from (overwrite_at + clip_duration) to EOF (stream copy, fast)
+        $rB = Run-FFmpeg $ffmpeg @("-y", "-ss", $endStr, "-i", $file_path, "-c", "copy", $partB)
+        if ($rB.ExitCode -ne 0) { return "ERROR: Failed to extract part B.`n$($rB.Stderr)" }
+
+        # Concat: part_A + overwrite_clip + part_B
+        $listFile = Write-ConcatList @($partA, $overwrite_clip, $partB)
+        $rC = Run-FFmpeg $ffmpeg @("-y", "-f", "concat", "-safe", "0", "-i", $listFile, "-c", "copy", $out)
+        Remove-Item $listFile -Force -ErrorAction SilentlyContinue
+
+        if ($rC.ExitCode -ne 0) { return "ERROR: Failed to join parts.`n$($rC.Stderr)" }
+
+        $clipDurStr = $clipDuration.ToString('F2', $ic)
+        $msg = "✅ Pasted '$([System.IO.Path]::GetFileName($overwrite_clip))' over original at $overwrite_at ($($clipDurStr)s)`n   Output: $out"
+        return "CONSOLE::$msg::END_CONSOLE::OK: Overwrite complete. Output: '$out'"
+
+    } finally {
+        Remove-Item $partA -Force -ErrorAction SilentlyContinue
+        Remove-Item $partB -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Op-Concat {
     param($ffmpeg, [string]$file_paths, [string]$output_format)
-    if (-not $file_paths) { return "ERROR: 'file_paths' is required — provide a comma-separated list of files." }
+    if ([string]::IsNullOrWhiteSpace($file_paths)) { return "ERROR: 'file_paths' is required — provide a comma-separated list of files." }
 
     $files = $file_paths -split "," | ForEach-Object { $_.Trim().Trim("'").Trim('"') }
     foreach ($f in $files) {
         if (-not (Test-Path $f)) { return "ERROR: File not found: '$f'" }
     }
 
-    # Build a temp concat list file.
-    # IMPORTANT: Must be written WITHOUT a BOM — Set-Content -Encoding UTF8 in
-    # Windows PowerShell 5.1 always prepends a BOM, which FFmpeg's concat
-    # demuxer cannot parse (it sees the BOM as unknown keyword and fails).
-    # [System.Text.UTF8Encoding]::new($false) gives UTF-8 without BOM on
-    # both .NET Framework 4.x and .NET 5+.
-    $listFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), ".txt")
-    $lines = $files | ForEach-Object {
-        # FFmpeg concat demuxer accepts forward slashes on Windows
-        $fwd = $_.Replace('\', '/')
-        "file '$fwd'"
-    }
-    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllLines($listFile, $lines, $utf8NoBom)
+    $listFile = Write-ConcatList $files
 
     $ext = if ($output_format) { ".$($output_format.TrimStart('.'))" } else { [System.IO.Path]::GetExtension($files[0]) }
     $out = Get-AudioOutputPath $files[0] "concat" ($ext.TrimStart('.'))
@@ -185,7 +324,7 @@ function Op-Concat {
 function Op-Convert {
     param($ffmpeg, [string]$file_path, [string]$output_format, [string]$bitrate, [string]$sample_rate)
     if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
-    if (-not $output_format) { return "ERROR: 'output_format' is required (e.g. 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a')." }
+    if ([string]::IsNullOrWhiteSpace($output_format)) { return "ERROR: 'output_format' is required (e.g. 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a')." }
 
     $out    = Get-AudioOutputPath $file_path "converted" $output_format
     $ffArgs = @("-y", "-i", $file_path)
@@ -201,7 +340,7 @@ function Op-Convert {
 function Op-Volume {
     param($ffmpeg, [string]$file_path, [string]$adjustment)
     if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
-    if (-not $adjustment) { return "ERROR: 'adjustment' is required. Use dB (e.g. '+6dB', '-3dB') or a multiplier (e.g. '1.5', '0.5')." }
+    if ([string]::IsNullOrWhiteSpace($adjustment)) { return "ERROR: 'adjustment' is required. Use dB (e.g. '+6dB', '-3dB') or a multiplier (e.g. '1.5', '0.5')." }
 
     # Normalise the adjustment string for FFmpeg's volume filter
     $volExpr = $adjustment.Trim()
@@ -292,7 +431,7 @@ function Op-Fade {
 function Op-Speed {
     param($ffmpeg, [string]$file_path, [string]$speed)
     if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
-    if (-not $speed) { return "ERROR: 'speed' is required (e.g. '1.5' for 1.5x, '0.75' for 75% speed)." }
+    if ([string]::IsNullOrWhiteSpace($speed)) { return "ERROR: 'speed' is required (e.g. '1.5' for 1.5x, '0.75' for 75% speed)." }
 
     $speedVal = 0.0
     if (-not [double]::TryParse($speed, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$speedVal)) {
@@ -417,6 +556,13 @@ function Invoke-AudioEditTool {
         [string]$end_time,
         [string]$duration,
         [string]$split_at,
+        # insert
+        [string]$insert_clip,
+        [string]$insert_start,
+        [string]$insert_end,
+        # overwrite
+        [string]$overwrite_clip,
+        [string]$overwrite_at,
         # concat
         [string]$file_paths,
         # convert
@@ -463,6 +609,8 @@ function Invoke-AudioEditTool {
     switch ($operation) {
         "trim"      { return Op-Trim     $ffmpeg $file_path $start $end_time $duration }
         "split"     { return Op-Split    $ffmpeg $file_path $split_at }
+        "insert"    { return Op-Insert   $ffmpeg $file_path $insert_clip $insert_start $insert_end }
+        "overwrite" { return Op-Overwrite $ffmpeg $ffprobe $file_path $overwrite_clip $overwrite_at }
         "concat"    { return Op-Concat   $ffmpeg $file_paths $output_format }
         "convert"   { return Op-Convert  $ffmpeg $file_path $output_format $bitrate $sample_rate }
         "volume"    { return Op-Volume   $ffmpeg $file_path $adjustment }
@@ -472,7 +620,7 @@ function Invoke-AudioEditTool {
         "channels"  { return Op-Channels $ffmpeg $file_path $mode }
         "metadata"  { return Op-Metadata $ffmpeg $ffprobe $file_path $action $title $artist $album $year $genre $comment $track }
         default {
-            return "ERROR: Unknown operation '$operation'. Valid operations: trim, split, concat, convert, volume, normalize, fade, speed, channels, metadata."
+            return "ERROR: Unknown operation '$operation'. Valid operations: trim, split, insert, overwrite, concat, convert, volume, normalize, fade, speed, channels, metadata."
         }
     }
 }
@@ -489,8 +637,10 @@ Use this tool to perform audio editing operations via FFmpeg. Always confirm the
 Choose 'operation' from the list below and supply only the parameters relevant to that operation.
 
 OPERATIONS:
-  trim        - Cut a clip. Requires: file_path, start. Provide end_time OR duration.
+  trim        - Cut a clip. Requires: file_path, start. Optionally provide end_time OR duration (omit both to trim to end of file).
   split       - Split into two files at a timestamp. Requires: file_path, split_at.
+  insert      - Insert or replace a section of audio with a new clip (atomic: handles split+rejoin in one call). Requires: file_path, insert_clip, insert_start. Optional: insert_end (if provided, the section from insert_start to insert_end is removed and replaced; if omitted, the clip is inserted at insert_start with nothing removed).
+  overwrite   - Paste a clip OVER the original audio at a timestamp WITHOUT changing the timeline length. The original is silenced underneath the clip for the clip's exact duration, then the original continues. Use this for dubbing, replacing a word/phrase, or laying a sound effect over existing audio. Requires: file_path, overwrite_clip, overwrite_at.
   concat      - Join multiple files. Requires: file_paths (comma-separated list). Optional: output_format.
   convert     - Re-encode to a new format. Requires: file_path, output_format (e.g. 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'). Optional: bitrate (e.g. '192k'), sample_rate (e.g. '44100').
   volume      - Adjust volume. Requires: file_path, adjustment (e.g. '+6dB', '-3dB', or '1.5' multiplier).
@@ -504,17 +654,24 @@ OUTPUT: All operations produce a new auto-named file in the same directory as th
 FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmpeg supports.
 "@
 
-    Description = "Audio editor using FFmpeg: trim, split, concat, convert, volume, normalize, fade, speed change, channel conversion, and metadata read/write."
+    Description = "Audio editor using FFmpeg: trim, split, insert (splice a clip in), overwrite (paste a clip over original), concat, convert, volume, normalize, fade, speed change, channel conversion, and metadata read/write."
 
     Parameters = @{
-        operation     = "string - Required. One of: trim, split, concat, convert, volume, normalize, fade, speed, channels, metadata."
+        operation     = "string - Required. One of: trim, split, insert, overwrite, concat, convert, volume, normalize, fade, speed, channels, metadata."
         file_path     = "string - Path to the input audio file (not needed for 'concat', which uses file_paths instead)."
         # trim
         start         = "string - [trim] Start time (e.g. '00:00:10' or '10')."
-        end_time      = "string - [trim] End time (e.g. '00:01:30'). Use instead of duration."
+        end_time      = "string - [trim] End time (e.g. '00:01:30'). Use instead of duration. Omit both end_time and duration to trim from start to end of file."
         duration      = "string - [trim] Duration to keep (e.g. '30' for 30s). Use instead of end_time."
         # split
         split_at      = "string - [split] Timestamp where the file is split into two parts."
+        # insert
+        insert_clip   = "string - [insert] Path to the audio clip to insert/replace with."
+        insert_start  = "string - [insert] Timestamp in the original where the replacement begins (e.g. '00:05:00')."
+        insert_end    = "string - [insert] Optional. Timestamp where the replaced section ends (e.g. '00:06:00'). If omitted, clip is inserted at insert_start with no audio removed."
+        # overwrite
+        overwrite_clip = "string - [overwrite] Path to the clip to paste over the original."
+        overwrite_at   = "string - [overwrite] Timestamp where the overwrite begins (e.g. '00:05:00' or '300'). The clip's full duration is pasted over the original from this point." 
         # concat
         file_paths    = "string - [concat] Comma-separated list of file paths to join in order."
         # convert
@@ -550,6 +707,8 @@ FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmp
         $icon = switch ($p.operation) {
             "trim"      { "✂️" }
             "split"     { "🔀" }
+            "insert"    { "📌" }
+            "overwrite" { "🎙️" }
             "concat"    { "🔗" }
             "convert"   { "🔄" }
             "volume"    { "🔊" }
