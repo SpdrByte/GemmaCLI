@@ -245,7 +245,7 @@ $helpLines = @(
     "exit               $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.6.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.6.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -948,6 +948,34 @@ while ($true) {
                         }
                         # Strip the instruction from the displayed console text
                         $consoleRaw = $consoleRaw -replace "::SET_VOICE:(David|Zira)", ""
+                    }
+
+                    # Handle inline instructions for BEEP
+                    if ($consoleRaw -match "BEEP:([0-9,;]+)") {
+                        $beepData = $matches[1]
+                        foreach ($b in $beepData -split ";") {
+                            $parts = $b -split ","
+                            if ($parts.Count -eq 2) {
+                                try { [console]::Beep([int]$parts[0], [int]$parts[1]) } catch {}
+                            }
+                        }
+                        $consoleRaw = $consoleRaw -replace "::?BEEP:[0-9,;]+", ""
+                    }
+
+                    # Handle inline instructions for PLAY_SOUND (WAV files from C:\Windows\Media)
+                    if ($consoleRaw -match "PLAY_SOUND:([\w\s.-]+)") {
+                        $soundFile = $matches[1]
+                        $fullPath = "C:\Windows\Media\$soundFile"
+                        if (-not ($fullPath.EndsWith(".wav"))) { $fullPath += ".wav" }
+                        
+                        if (Test-Path $fullPath) {
+                            try {
+                                $speaker = New-Object System.Media.SoundPlayer
+                                $speaker.SoundLocation = $fullPath
+                                $speaker.Play() # PlayAsync to not block main thread
+                            } catch {}
+                        }
+                        $consoleRaw = $consoleRaw -replace "::?PLAY_SOUND:[\w\s.-]+", ""
                     }
 
                     $consoleText = Convert-ToHyperlink -Text $consoleRaw
