@@ -1,19 +1,151 @@
 {
     "startup_delay":  3,
-    "disabled_tools":  [
-                           "browse_web",
-                           "adventure",
-                           "blackjack",
-                           "writefile",
-                           "http_get"
-                       ],
-    "smart_trim_strength":  7,
+    "smart_trim_strength":  3,
+    "model_registry":  {
+                           "gemma-ultra":  {
+                                               "id":  "gemma-3-27b-it",
+                                               "label":  "Gemma Ultra (27B)",
+                                               "desc":  "Maximum reasoning \u0026 logic"
+                                           },
+                           "gemma-heavy":  {
+                                               "id":  "gemma-3-12b-it",
+                                               "label":  "Gemma Heavy (12B)",
+                                               "desc":  "High performance balance"
+                                           },
+                           "gemma-medium":  {
+                                                "id":  "gemma-3-4b-it",
+                                                "label":  "Gemma Medium (4B)",
+                                                "desc":  "Fast multimodal reasoning"
+                                            },
+                           "gemma-small":  {
+                                               "id":  "gemma-3-1b-it",
+                                               "label":  "Gemma Small (1B)",
+                                               "desc":  "Ultra-lightweight text only"
+                                           },
+                           "gemma-nano-pro":  {
+                                                  "id":  "gemma-3n-e4b-it",
+                                                  "label":  "Gemma Nano Pro",
+                                                  "desc":  "Optimized for small/mobile devices"
+                                              },
+                           "gemma-nano-lite":  {
+                                                   "id":  "gemma-3n-e2b-it",
+                                                   "label":  "Gemma Nano Lite",
+                                                   "desc":  "Lowest latency nano model"
+                                               },
+                           "gemini-pro":  {
+                                              "id":  "gemini-3.1-pro-preview",
+                                              "label":  "Gemini Pro",
+                                              "desc":  "Top-tier intelligence preview"
+                                          },
+                           "gemini-pro-tools":  {
+                                                    "id":  "gemini-3.1-pro-preview-customtools",
+                                                    "label":  "Gemini Pro (Tools)",
+                                                    "desc":  "Optimized for tool execution"
+                                                },
+                           "gemini-fast":  {
+                                               "id":  "gemini-3-flash-preview",
+                                               "label":  "Gemini Fast",
+                                               "desc":  "Optimized for speed \u0026 frequency"
+                                           },
+                           "gemini-lite":  {
+                                               "id":  "gemini-3.1-flash-lite-preview",
+                                               "label":  "Gemini Lite",
+                                               "desc":  "Extreme efficiency"
+                                           },
+                           "gemini-vision":  {
+                                                 "id":  "gemini-3.1-flash-image-preview",
+                                                 "label":  "Gemini Vision",
+                                                 "desc":  "Vision \u0026 image analysis"
+                                             },
+                           "gemini-vision-hd":  {
+                                                    "id":  "gemini-3-pro-image-preview",
+                                                    "label":  "Gemini Vision HD",
+                                                    "desc":  "Professional high-res vision"
+                                                },
+                           "gemini-live":  {
+                                               "id":  "gemini-3.1-flash-live-preview",
+                                               "label":  "Gemini Live",
+                                               "desc":  "Real-time streaming/interaction"
+                                           },
+                           "gemini-stable-fast":  {
+                                                      "id":  "gemini-2.5-flash",
+                                                      "label":  "Gemini Stable Fast",
+                                                      "desc":  "Reliable 2.5 flash model"
+                                                  },
+                           "gemini-stable-pro":  {
+                                                     "id":  "gemini-2.5-pro",
+                                                     "label":  "Gemini Stable Pro",
+                                                     "desc":  "Reliable 2.5 pro model"
+                                                 },
+                           "audio-native":  {
+                                                "id":  "gemini-2.5-flash-native-audio-preview-12-2025",
+                                                "label":  "Audio Native Pro",
+                                                "desc":  "Deep audio understanding"
+                                            },
+                           "audio-speech":  {
+                                                "id":  "gemini-2.5-flash-preview-tts",
+                                                "label":  "Speech Optimized",
+                                                "desc":  "Native TTS generation"
+                                            },
+                           "video-pro":  {
+                                             "id":  "veo-3.1-generate-preview",
+                                             "label":  "Veo Video Pro",
+                                             "desc":  "Cinematic video generation"
+                                         },
+                           "video-fast":  {
+                                              "id":  "veo-3.1-fast-generate-preview",
+                                              "label":  "Veo Video Fast",
+                                              "desc":  "Rapid video preview generation"
+                                          },
+                           "music-pro":  {
+                                             "id":  "lyria-3-pro-preview",
+                                             "label":  "Lyria Music Pro",
+                                             "desc":  "Professional music creation"
+                                         },
+                           "music-fast":  {
+                                              "id":  "lyria-3-clip-preview",
+                                              "label":  "Lyria Music Fast",
+                                              "desc":  "Short-form audio creation"
+                                          },
+                           "music-live":  {
+                                              "id":  "lyria-realtime-exp",
+                                              "label":  "Lyria Realtime",
+                                              "desc":  "Live audio interaction"
+                                          },
+                           "agent-computer":  {
+                                                  "id":  "gemini-2.5-computer-use-preview-10-2025",
+                                                  "label":  "Computer Agent",
+                                                  "desc":  "Operating system interaction"
+                                              },
+                           "agent-research":  {
+                                                  "id":  "deep-research-pro-preview-12-2025",
+                                                  "label":  "Research Agent",
+                                                  "desc":  "Exhaustive web synthesis"
+                                              },
+                           "agent-robotics":  {
+                                                  "id":  "gemini-robotics-er-1.5-preview",
+                                                  "label":  "Robotics Agent",
+                                                  "desc":  "Robotic physical control"
+                                              },
+                           "embedding-pro":  {
+                                                 "id":  "gemini-embedding-2-preview",
+                                                 "label":  "Embedding Pro",
+                                                 "desc":  "Latest high-dim vectorization"
+                                             },
+                           "embedding-lite":  {
+                                                  "id":  "gemini-embedding-001",
+                                                  "label":  "Embedding Lite",
+                                                  "desc":  "Standard/Legacy vectorization"
+                                              }
+                       },
+    "current_model_handle":  "gemma-nano-pro",
     "colors":  {
                    "input_highlight":  "DarkMagenta",
                    "input_text":  "White",
                    "gemma_response":  "Green",
                    "ui_boxes":  "Cyan"
                },
+    "context_mode":  "standard",
     "color_scheme":  "default",
     "smart_trim":  true
 }
