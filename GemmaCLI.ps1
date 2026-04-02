@@ -278,7 +278,7 @@ $helpLines = @(
     "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.7.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.7.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -572,7 +572,7 @@ while ($true) {
                     
                     # They selected an actual tool
                     $selectedTool = $currentPageTools[$toolChoice]
-                    $enabledCount = ($allTools | Where-Object { $_.Status -eq "Enabled" }).Count
+                    $enabledCount = @($allTools | Where-Object { $_.Status -eq "Enabled" }).Count
                     $limit = $script:TOOL_LIMITS[$script:MODEL]
 
                     if ($selectedTool.Status -eq "Disabled" -and $enabledCount -ge $limit) {
@@ -691,7 +691,7 @@ while ($true) {
         $modelArg = $matches[1].Trim()
 
         # Strictly allowed handles for the Chat Model Picker
-        $gemmaHandles = @("gemma-ultra", "gemma-heavy", "gemma-medium", "gemma-small", "gemma-vision-pro", "gemma-vision-lite")
+        $gemmaHandles = @("gemma-ultra", "gemma-heavy", "gemma-medium", "gemma-small", "gemma-nano-pro", "gemma-nano-lite")
         $availableGemma = @()
         foreach ($handle in $gemmaHandles) {
             $p = $script:MODEL_REGISTRY.PSObject.Properties[$handle]
