@@ -1,13 +1,15 @@
-# lib/Api.ps1
+# lib/Api.ps1 v0.1.0
 # Responsibility: Manages interactions with the Google Gemini API, including Job management and error handling.
 # Handles the Start-Job logic for API calls.
 
 function Resolve-ModelId {
     param([string]$Choice)
     $c = $Choice.Trim().ToLower()
-    if ($script:MODEL_REGISTRY.Contains($c)) { return $script:MODEL_REGISTRY[$c].id }
-    foreach ($entry in $script:MODEL_REGISTRY.Values) { if ($entry.id -eq $c) { return $entry.id } }
-    Write-Warning "Unknown model '$Choice'. Defaulting to gemma-3-27b-it."
+    if ($script:MODEL_REGISTRY -and $script:MODEL_REGISTRY.Contains($c)) { return $script:MODEL_REGISTRY[$c].id }
+    if ($script:MODEL_REGISTRY) {
+        foreach ($entry in $script:MODEL_REGISTRY.Values) { if ($entry.id -eq $c) { return $entry.id } }
+    }
+    Write-Warning "Unknown model '$Choice' or registry missing. Defaulting to gemma-3-27b-it."
     return "gemma-3-27b-it"
 }
 
@@ -23,7 +25,10 @@ function ConvertTo-Hashtable {
 
 function Get-BaseUri { return "$($script:BASE_URI_BASE)/$($script:MODEL):generateContent" }
 function Get-ApiUri { return "$(Get-BaseUri)?key=$($script:API_KEY)" }
-function Get-GeminiUri { return "$($script:BASE_URI_BASE)/gemini-2.5-flash:generateContent?key=$($script:API_KEY)" }
+function Get-GeminiUri { 
+    $modelId = Resolve-ModelId "gemini-stable-fast"
+    return "$($script:BASE_URI_BASE)/${modelId}:generateContent?key=$($script:API_KEY)" 
+}
 
 function Get-SystemPrompt {
     if (-not $script:intelligence.system_prompts) { return $script:intelligence.system_prompt }
@@ -208,6 +213,10 @@ function Invoke-SingleTurnApi {
 
     if ($resp.cancelled) { return "ERROR: Operation cancelled by user" }
     if ($resp.apiError)  { return "ERROR: $($resp.apiError)" }
+    if (-not $resp.candidates) {
+        $reason = if ($resp.promptFeedback.blockReason) { $resp.promptFeedback.blockReason } else { "No candidates returned (blocked?)" }
+        return "ERROR: $reason"
+    }
     
     return $resp.candidates[0].content.parts[0].text.Trim()
 }

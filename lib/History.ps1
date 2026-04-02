@@ -1,4 +1,4 @@
-# lib/History.ps1
+# lib/History.ps1 v0.1.0
 
 function Trim-History {
     param($hist, [int]$tokenBudget = 100000)
@@ -56,8 +56,9 @@ function Trim-History {
 function Invoke-EmbedText {
     param([string]$text)
     if ($text.Length -gt 8000) { $text = $text.Substring(0, 8000) }
-    $uri = "$($script:BASE_URI_BASE)/gemini-embedding-001:embedContent?key=$($script:API_KEY)"
-    if ($script:debugMode) { Write-Host " [SmartTrim] Embed URI: $($uri.Split('?')[0])" -ForegroundColor DarkGray }
+    $modelId = Resolve-ModelId "embedding-lite"
+    $uri = "$($script:BASE_URI_BASE)/${modelId}:embedContent?key=$($script:API_KEY)"
+    if ($script:debugMode) { Write-Host " [SmartTrim] Embed URI: $($uri.Split('?')[0])" -ForegroundColor Yellow }
     $body = @{ content = @{ parts = @(@{ text = $text }) } } | ConvertTo-Json -Depth 6 -Compress
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $resp = Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
@@ -82,6 +83,16 @@ function Invoke-SmartTrim {
     $enabled = if ($null -ne $script:Settings.smart_trim) { [bool]$script:Settings.smart_trim } else { $false }
     $strength = if ($script:Settings.smart_trim_strength) { [int]$script:Settings.smart_trim_strength } else { 5 }
 
+    # If no query provided (manual trim), fallback to last user message text
+    if ([string]::IsNullOrWhiteSpace($currentQuery)) {
+        for ($i = $hist.Count - 1; $i -ge 0; $i--) {
+            if ($hist[$i].role -eq "user" -and $hist[$i].parts[0].text) {
+                $currentQuery = $hist[$i].parts[0].text
+                break
+            }
+        }
+    }
+
     if (-not $enabled -or [string]::IsNullOrWhiteSpace($currentQuery)) {
         return Trim-History -hist $hist -tokenBudget $tokenBudget
     }
@@ -101,7 +112,7 @@ function Invoke-SmartTrim {
             }
         }
         if ($tokenEst -le $tokenBudget) {
-            if ($script:debugMode) { Write-Host " [SmartTrim] Tokens $tokenEst under budget $tokenBudget - skipping" -ForegroundColor DarkGray }
+            if ($script:debugMode) { Write-Host " [SmartTrim] Tokens $tokenEst under budget $tokenBudget - skipping" -ForegroundColor Yellow }
             return $hist
         }
 
@@ -113,7 +124,7 @@ function Invoke-SmartTrim {
             return Trim-History -hist $hist -tokenBudget $tokenBudget
         }
 
-        if ($script:debugMode) { Write-Host " [SmartTrim] Embedding $($candidates.Count) candidate turns (strength $strength, keeping top $keepCount)..." -ForegroundColor DarkGray }
+        if ($script:debugMode) { Write-Host " [SmartTrim] Embedding $($candidates.Count) candidate turns (strength $strength, keeping top $keepCount)..." -ForegroundColor Yellow }
 
         $tailTexts = ($tail | ForEach-Object { ($_.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " " }) -join " "
         $queryVec = Invoke-EmbedText -text "$currentQuery $tailTexts"
@@ -151,7 +162,7 @@ function Invoke-SmartTrim {
 
         if ($script:debugMode) {
             $dropped = $candidates.Count - $kept.Count
-            Write-Host " [SmartTrim] Complete. Kept $($kept.Count), dropped $dropped candidate turns. Final count: $($newHist.Count)" -ForegroundColor DarkGray
+            Write-Host " [SmartTrim] Complete. Kept $($kept.Count), dropped $dropped candidate turns. Final count: $($newHist.Count)" -ForegroundColor Yellow
             Write-Host " [SmartTrim] --- KEPT TURNS ---" -ForegroundColor Green
             foreach ($s in ($scored | Sort-Object score -Descending | Select-Object -First $keepCount)) {
                 $preview = ($s.turn.parts[0].text -replace '\s+',' ').Substring(0, [math]::Min(60, $s.turn.parts[0].text.Length))

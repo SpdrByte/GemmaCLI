@@ -77,3 +77,50 @@ function Get-ToolInstructions {
 
     return ($toolInstructions -join "`n")
 }
+
+function Get-ToolsSummary {
+    param(
+        [string]$ScriptRoot,
+        [string]$Mode = "enabled" # enabled, disabled, all
+    )
+
+    $chk = [char]0x2713
+    $crs = [char]0x2717
+    $arr = [char]0x2192
+    
+    $results = @()
+    $toolsDir = Join-Path $ScriptRoot "tools"
+    $moreToolsDir = Join-Path $ScriptRoot "more_tools"
+
+    $folders = @()
+    if ($Mode -eq "enabled" -or $Mode -eq "all") { $folders += @{ Path = $toolsDir; Icon = $chk; Label = "Enabled" } }
+    if ($Mode -eq "disabled" -or $Mode -eq "all") { $folders += @{ Path = $moreToolsDir; Icon = $crs; Label = "Disabled" } }
+
+    foreach ($folder in $folders) {
+        if (Test-Path $folder.Path) {
+            Get-ChildItem -Path $folder.Path -Filter "*.ps1" | Sort-Object Name | ForEach-Object {
+                try {
+                    $content = Get-Content -Path $_.FullName -Raw -Encoding UTF8
+                    $ToolMeta = $null
+                    # Lightweight execution to get metadata only
+                    Invoke-Expression -Command $content
+                    if ($ToolMeta) {
+                        $params = if ($ToolMeta.Parameters) { 
+                            "(" + (($ToolMeta.Parameters.Keys | ForEach-Object { $_ }) -join ", ") + ")" 
+                        } else { "" }
+                        
+                        $results += "$($folder.Icon)  $($ToolMeta.Name)$params [$($folder.Label)]"
+                        $results += "     $arr  $($ToolMeta.Description)"
+                        $results += ""
+                    }
+                } catch { }
+            }
+        }
+    }
+
+    if ($results.Count -eq 0) {
+        $results += "No tools found in category: $Mode"
+    }
+
+    return $results
+}
