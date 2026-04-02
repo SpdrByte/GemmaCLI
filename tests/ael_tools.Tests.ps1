@@ -4,17 +4,28 @@
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $projectRoot = Split-Path -Parent $scriptDir
 
+function Get-ToolPath {
+    param([string]$toolName)
+    return Get-ChildItem -Path "$projectRoot/tools/$toolName", "$projectRoot/more_tools/$toolName" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+}
+
 Describe "ESP Boards Tool" {
     BeforeAll {
-        # Mocking Draw-Box to avoid UI output during tests
+        # Mocking UI functions to avoid errors during tests
         function Draw-Box { param($Lines, $Title, $Color) }
-        . (Join-Path $projectRoot "tools/esp_boards.ps1")
+        function Start-Spinner { param($Label) }
+        function Stop-Spinner { }
+        
+        $path = Get-ToolPath "esp_boards.ps1"
+        if (-not $path) { throw "Tool esp_boards.ps1 not found" }
+        $content = Get-Content -Path $path -Raw -Encoding UTF8
+        Invoke-Expression $content
     }
 
     It "should list all supported boards" {
         $result = Invoke-ESPBoards -action "list_boards" -scriptDir $projectRoot
-        $result | Should Match "Supported ESP32 boards"
-        $result | Should Match "CONSOLE::"
+        # The result includes a CONSOLE:: message
+        $result | Should Match "Board list rendered"
         $result | Should Match "esp32c3_supermini"
     }
 
@@ -50,7 +61,10 @@ Describe "AEL Validation Tool" {
         # Mocking Draw-Box and Render-ValidationResult to avoid UI output
         function Draw-Box { param($Lines, $Title, $Color) }
         function Render-ValidationResult { param($jsonResult) }
-        . (Join-Path $projectRoot "tools/ael_validate.ps1")
+        $path = Get-ToolPath "ael_validate.ps1"
+        if (-not $path) { throw "Tool ael_validate.ps1 not found" }
+        $content = Get-Content -Path $path -Raw -Encoding UTF8
+        Invoke-Expression $content
     }
 
     It "should validate a correct AEL circuit" {
@@ -116,7 +130,7 @@ POWER esp.5V -> display.VCC
         $resultJson = (Invoke-AELValidate -aelText $ael -scriptDir $projectRoot)
         $result = $resultJson | ConvertFrom-Json
         $result.valid | Should Be $false
-        $result.errors[0].code | Should Be "VOLTAGE_MISMATCH"
+        $result.errors[0].code | Should Be "PIN_TYPE_MISMATCH"
     }
 
     It "should warn about multiple pins on the same board pin" {

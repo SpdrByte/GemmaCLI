@@ -1,6 +1,9 @@
 Describe 'background_check.ps1' {
     # Source the script to be tested
-    . "$PSScriptRoot/../tools/background_check.ps1"
+    $toolFile = "background_check.ps1"
+    $path = Get-ChildItem -Path "$PSScriptRoot/../tools/$toolFile", "$PSScriptRoot/../more_tools/$toolFile" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+    if (-not $path) { throw "Tool $toolFile not found" }
+    . $path
 
     # Mock external dependencies
     BeforeEach {
