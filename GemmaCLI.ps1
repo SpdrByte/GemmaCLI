@@ -7,7 +7,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $TL = [char]0x256D; $TR = [char]0x256E; $BL = [char]0x2570; $BR = [char]0x256F
 $H = [char]0x2500;  $V = [char]0x2502;  $ARR = [char]0x2192; $CHK = [char]0x2713
 $CRS = [char]0x2717; $DOT = [char]0x25CF; $BUL = [char]0x2022; $BLK = [char]0x2588
-$LBK = [char]0x2591
+$LBK = [char]0x2591; $WRN = [char]0x26A0
 
 # =========================================================================================
 # SCRIPT INITIALIZATION
@@ -16,19 +16,38 @@ $LBK = [char]0x2591
 # 1. Define Script Directory
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-# ====================== CORE REGISTRY & CONSTANTS ======================
-$script:MODEL_REGISTRY = [ordered]@{
-    "3-27b"   = @{ id = "gemma-3-27b-it";    label = "Gemma 3 27B";    desc = "Heavy logic & reasoning  (default)" }
-    "3-12b"   = @{ id = "gemma-3-12b-it";    label = "Gemma 3 12B";    desc = "Balanced speed / performance" }
-    "3-4b"    = @{ id = "gemma-3-4b-it";     label = "Gemma 3 4B";     desc = "Fast multimodal tasks" }
-    "3-1b"    = @{ id = "gemma-3-1b-it";     label = "Gemma 3 1B";     desc = "Tiny text-only routing" }
-    "3n-e4b"  = @{ id = "gemma-3n-e4b-it";   label = "Gemma 3n E4B";   desc = "High-fidelity multimodal reasoning" }
-    "3n-e2b"  = @{ id = "gemma-3n-e2b-it";   label = "Gemma 3n E2B";   desc = "Ultra-low latency" }
+# ====================== LOAD SETTINGS ======================
+$settingsPath = Join-Path $scriptDir "config/settings.json"
+$script:Settings = @{}
+if (Test-Path $settingsPath) {
+    try {
+        $rawSettings = Get-Content $settingsPath | ConvertFrom-Json
+        if ($rawSettings) {
+            foreach ($prop in $rawSettings.PSObject.Properties) {
+                $script:Settings[$prop.Name] = $prop.Value
+            }
+        }
+    } catch { }
 }
 
-$script:MODEL    = "gemma-3-27b-it"
+# ====================== CORE REGISTRY & CONSTANTS ======================
+# Dynamically load from settings, or fallback to safety if missing
+$script:MODEL_REGISTRY = if ($script:Settings.model_registry) { 
+    $script:Settings.model_registry 
+} else {
+    [ordered]@{
+        "gemma-ultra" = @{ id = "gemma-3-27b-it"; label = "Gemma Ultra (27B)"; desc = "Highest reasoning & logic" }
+    }
+}
+
+# Default to Ultra unless specified in settings
+$script:MODEL_HANDLE = if ($script:Settings.current_model_handle) { $script:Settings.current_model_handle } else { "gemma-ultra" }
+# Resolve handle to ID for API calls
+$script:MODEL = $script:MODEL_REGISTRY.$($script:MODEL_HANDLE).id
+
 $script:BASE_URI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
+# Tool limits mapped to model IDs (for legacy compatibility) or Handles
 $script:TOOL_LIMITS = @{
     "gemma-3-27b-it" = 12
     "gemma-3-12b-it" = 8
@@ -36,6 +55,12 @@ $script:TOOL_LIMITS = @{
     "gemma-3n-e4b-it" = 2
     "gemma-3n-e2b-it" = 2
     "gemma-3-1b-it"  = 0
+}
+
+function Get-ModelLimit {
+    param([string]$modelId)
+    if ($script:TOOL_LIMITS.ContainsKey($modelId)) { return $script:TOOL_LIMITS[$modelId] }
+    return 10 # Default for new/unknown models
 }
 
 # 2. Source All Library Modules
@@ -136,6 +161,12 @@ function Update-SystemPrompt {
     $toolBlock = Get-ToolInstructions -ScriptRoot $scriptDir -Model $script:MODEL -ToolLimits $script:TOOL_LIMITS
     $prompt = Get-SystemPrompt
     $prompt = $prompt -replace "%%AVAILABLE_TOOLS%%", $toolBlock
+    
+    # Onboarding Injection: If tutorial tool is active, force initiation
+    if ($script:TOOLS.ContainsKey("tutorial")) {
+        $prompt += "`n`nONBOARDING: The 'tutorial' tool is active. You MUST call it immediately to receive your mission instructions for this session."
+    }
+
     $prompt = "SYSTEM: Current date and time: $(Get-Date -Format 'dddd, MMMM dd yyyy HH:mm')`n`n" + $prompt
     $script:systemPrompt = $prompt
     $script:history = @( @{ role = "user"; parts = @(@{ text = $script:systemPrompt }) } )
@@ -232,20 +263,22 @@ $helpLines = @(
     "/help              $ARR Show all commands",
     "/clear             $ARR Reset conversation",
     "/speak [m/f]       $ARR Toggle Text-to-Speech (TTS) output",
+    "/listen            $ARR Enable Speech-to-Text (STT) input",
     "/recall            $ARR Load memories from previous sessions",
     "/multiline         $ARR Multiline mode - end with /end",
     "/model [id]        $ARR Switch model / pass id directly",
-    "/tools             $ARR Show available tools",
+    "/tools [all]       $ARR Show enabled/disabled/all tools",
     "/settings          $ARR Manage system settings",
     "/customCommand     $ARR List/Create your custom commands",
     "/bigBrother [q]    $ARR Dual model pipeline, Gemini > Gemma > Gemini",
     "/littleSister [q]  $ARR Dual model pipeline, Gemma > Gemini > Gemma",
     "/debug             $ARR Toggle debug output",
+    "/trim              $ARR Force manual context trim",
     "/resetkey          $ARR Delete saved key & re-prompt",
-    "exit               $ARR Quit"
+    "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.6.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.7.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -301,7 +334,7 @@ while ($true) {
         [Console]::SetCursorPosition(0, $endY)
     }
 
-    if ($userInput -eq "exit") { break }
+    if ($userInput -eq "exit" -or $userInput -eq "/exit") { break }
 
 
      if ($userInput -eq "/multiline") {
@@ -377,9 +410,44 @@ while ($true) {
         continue
     }
 
+    if ($userInput -eq "/trim") {
+        $script:history = Invoke-SmartTrim -hist $script:history -tokenBudget $script:TRIM_THRESHOLD
+        Draw-Box @("$CHK  Manual context trim completed.") -Color Magenta
+        continue
+    }
+
     if ($userInput -eq "/help") {
         Draw-Box $helpLines -Title "Gemma CLI  $BUL  Help" -Width 80 -Color $script:Colors.ui_boxes
         continue
+    }
+
+    if ($userInput -eq "/listen") {
+        try {
+            Add-Type -AssemblyName System.Speech
+            $recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+            $recognizer.SetInputToDefaultAudioDevice()
+            $recognizer.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+            
+            # Give the user more time to think and speak
+            $recognizer.InitialSilenceTimeout = [TimeSpan]::FromSeconds(10)
+            $recognizer.EndSilenceTimeout = [TimeSpan]::FromSeconds(3)
+
+            Write-Host "`n  [LISTENING...] " -NoNewline -ForegroundColor Yellow
+            $sttResult = $recognizer.Recognize([TimeSpan]::FromSeconds(60))
+            
+            if ($sttResult) {
+                $userInput = $sttResult.Text
+                Write-Host $userInput -ForegroundColor Green
+            } else {
+                Write-Host "No speech detected." -ForegroundColor Red
+                continue
+            }
+        } catch {
+            Write-Host "  [!] STT Error: $($_.Exception.Message)" -ForegroundColor Red
+            continue
+        } finally {
+            if ($recognizer) { $recognizer.Dispose() }
+        }
     }
 
 
@@ -432,15 +500,20 @@ while ($true) {
     }
 
 
-    if ($userInput -eq "/tools") {
-        $toolLines = @()
-        foreach ($tool in $script:TOOLS.Values) {
-            $paramList = ($tool.Parameters.Keys | ForEach-Object { "$_=$($tool.Parameters[$_])" }) -join ", "
-            $toolLines += "$CHK  $($tool.Name)($paramList)"
-            $toolLines += "     $ARR  $($tool.Description)"
-            $toolLines += ""
+    if ($userInput -match '^/tools\s*(.*)$') {
+        $sub = $matches[1].Trim().ToLower()
+        $mode = "enabled"
+        if ($sub -eq "all") { $mode = "all" }
+        elseif ($sub -eq "disabled") { $mode = "disabled" }
+        
+        $title = switch ($mode) {
+            "all"      { "All Repository Tools (Enabled & Disabled)" }
+            "disabled" { "Disabled Tools (more_tools/)" }
+            default    { "Active Tools (Enabled)" }
         }
-        Draw-Box $toolLines -Title "Available Tools" -Width 80 -Color Green
+
+        $toolLines = Get-ToolsSummary -ScriptRoot $scriptDir -Mode $mode
+        Draw-Box $toolLines -Title $title -Width 90 -Color Green
         continue
     }
 
@@ -507,12 +580,10 @@ while ($true) {
                     } else {
                         if ($selectedTool.Status -eq "Enabled") {
                             Move-Item -Path "tools\$($selectedTool.Name).ps1" -Destination "more_tools/"
-                            $script:Settings.disabled_tools += $selectedTool.Name
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
                             Draw-Box @("Tool '$($selectedTool.Name)' disabled. Restart GemmaCLI to refresh tools.") -Color Yellow
                         } else {
                             Move-Item -Path "more_tools\$($selectedTool.Name).ps1" -Destination "tools/"
-                            $script:Settings.disabled_tools = $script:Settings.disabled_tools | Where-Object { $_ -ne $selectedTool.Name }
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
                             Draw-Box @("Tool '$($selectedTool.Name)' enabled. Restart GemmaCLI to refresh tools.") -Color Yellow
                         }
@@ -619,35 +690,54 @@ while ($true) {
     if ($userInput -match '^/model\s*(.*)$') {
         $modelArg = $matches[1].Trim()
 
+        # Strictly allowed handles for the Chat Model Picker
+        $gemmaHandles = @("gemma-ultra", "gemma-heavy", "gemma-medium", "gemma-small", "gemma-vision-pro", "gemma-vision-lite")
+        $availableGemma = @()
+        foreach ($handle in $gemmaHandles) {
+            $p = $script:MODEL_REGISTRY.PSObject.Properties[$handle]
+            if ($p -and $p.Value.id) { $availableGemma += $p }
+        }
+
         if ([string]::IsNullOrWhiteSpace($modelArg)) {
-            # Show interactive arrow-key picker
-            $menuLabels = $script:MODEL_REGISTRY.Keys | ForEach-Object {
-                $e = $script:MODEL_REGISTRY[$_]
-                "$($e.label.PadRight(18)) $ARR  $($e.id.PadRight(22))  $($e.desc)"
+            # UI shows Checkmark (if current), ID, and Description in aligned columns
+            $menuLabels = $availableGemma | ForEach-Object {
+                $e = $_.Value
+                $isCurrent = ($_.Name -eq $script:MODEL_HANDLE)
+                $prefix = if ($isCurrent) { "$CHK " } else { "  " }
+                "$prefix $($e.id.PadRight(25)) $ARR  $($e.desc)"
             }
+            
             $currentIdx = 0
-            $keys = @($script:MODEL_REGISTRY.Keys)
-            for ($i = 0; $i -lt $keys.Count; $i++) {
-                if ($script:MODEL_REGISTRY[$keys[$i]].id -eq $script:MODEL) { $currentIdx = $i; break }
+            for ($i = 0; $i -lt $availableGemma.Count; $i++) {
+                if ($availableGemma[$i].Name -eq $script:MODEL_HANDLE) { $currentIdx = $i; break }
             }
-            $choice = Show-ArrowMenu `
-                -Options $menuLabels `
-                -Title "Select Model  $BUL  current: $script:MODEL" `
-                -Width 100 `
-                -Default $currentIdx
+
+            $choice = Show-ArrowMenu -Options $menuLabels -Title "Select Gemma Model  $BUL  $WRN Warning: Changing model clears context" -Width 110 -Default $currentIdx
+            
             if ($choice -ge 0) {
-                $script:MODEL = $script:MODEL_REGISTRY[$keys[$choice]].id
+                $selected = $availableGemma[$choice]
+                $script:MODEL_HANDLE = $selected.Name
+                $script:MODEL = $selected.Value.id
+                $script:Settings.current_model_handle = $script:MODEL_HANDLE
+                $script:Settings | ConvertTo-Json | Set-Content $settingsPath
                 Update-SystemPrompt
                 Draw-Box @("$CHK  Model switched to: $script:MODEL") -Color Magenta
             } else {
                 Write-Host "  Model selection cancelled." -ForegroundColor DarkGray
             }
         } else {
-            # Direct switch: /model 3n-e4b  OR  /model gemma-3n-e4b-it
-            $resolved = Resolve-ModelId $modelArg
-            $script:MODEL = $resolved
-            Update-SystemPrompt
-            Draw-Box @("$CHK  Model switched to: $script:MODEL") -Color Magenta
+            # Direct switch: check if input matches a Gemma ID or Handle
+            $found = $availableGemma | Where-Object { $_.Name -eq $modelArg -or $_.Value.id -eq $modelArg }
+            if ($found) {
+                $script:MODEL_HANDLE = $found.Name
+                $script:MODEL = $found.Value.id
+                $script:Settings.current_model_handle = $script:MODEL_HANDLE
+                $script:Settings | ConvertTo-Json | Set-Content $settingsPath
+                Update-SystemPrompt
+                Draw-Box @("$CHK  Model switched to: $script:MODEL") -Color Magenta
+            } else {
+                Write-Host "  [!] Unknown or restricted Gemma model '$modelArg'." -ForegroundColor Red
+            }
         }
         continue
     }
@@ -703,7 +793,7 @@ while ($true) {
         $script:lastApiCall = Get-Date
 
         # Trim history if approaching context window limit
-        $script:history = Invoke-SmartTrim -hist $script:history -tokenBudget 11000 -currentQuery $userInput
+        $script:history = Invoke-SmartTrim -hist $script:history -tokenBudget $script:TRIM_THRESHOLD -currentQuery $userInput
 
         # Start spinner ONLY for the API call to avoid interfering with tool logic
         Start-Spinner -Label "Gemma is thinking (Esc to cancel)"
@@ -848,7 +938,7 @@ while ($true) {
                 }
 
                 $script:toolJob = Start-Job -ScriptBlock {
-                    param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history)
+                    param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history, $modelRegistry)
                     Set-Location -Path $workDir
                     
                     # Initialize core script state inside the job
@@ -856,6 +946,7 @@ while ($true) {
                     $script:BASE_URI_BASE = $baseUri
                     $script:MODEL = $model
                     $script:TOOL_LIMITS = $toolLimits
+                    $script:MODEL_REGISTRY = $modelRegistry
                     $script:configDir = $configDir
                     $script:apiCallLog_Gemma = [System.Collections.Generic.List[datetime]]::new()
                     $script:apiCallLog_Gemini = [System.Collections.Generic.List[datetime]]::new()
@@ -888,7 +979,7 @@ while ($true) {
                     } finally {
                         $ToolMeta = $null
                     }
-                } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir, $script:history
+                } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir, $script:history, $script:MODEL_REGISTRY
 
 
                 $cancelled = $false

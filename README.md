@@ -1,6 +1,6 @@
 # Gemma CLI: The Professional PowerShell Interface for Gemma 3
 
-![Version: 0.6.0](https://img.shields.io/badge/Version-0.6.0-green)
+![Version: 0.7.0](https://img.shields.io/badge/Version-0.7.0-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
@@ -56,6 +56,8 @@ GemmaCLI/
 │   └── ToolLoader.ps1 # Tool discovery & dynamic registration
 ├── tools/             # Active tools (automatically loaded by the AI)
 ├── more_tools/        # Tool library (inactive until moved to tools/)
+├── database/          # Persistent JSON data for tools (RPG, Pets, etc.)
+├── assets/            # UI images and tool-specific icons
 ├── config/            # Local configuration files
 ├── tests/             # Pester test suite
 ├── instructions.json  # System prompts & model configurations
@@ -92,21 +94,24 @@ Gemma CLI extends standard chat with a suite of management commands.
 | Command | Action |
 | :--- | :--- |
 | `/help` | Display all available interactive commands |
-| `/model` | Switch between 27B, 12B, and specialized models (Interactive) |
-| `/tools` | List all active and loaded tools with their parameters |
+| `/model` | Switch between reasoning tiers and specialized models (Interactive) |
+| `/tools [all]` | Show enabled/disabled/all tools with parameters and descriptions |
 | `/multiline` | Multiline for coding, pasting multiple lines |
 | `/settings` | Toggle UI color schemes and manage active/inactive tools |
 | `/speak [m/f]` | Toggle Text-to-Speech (TTS) output (Male/Female) |
+| `/listen` | Enable Speech-to-Text (STT) input (requires microphone) |
 | `/customCommand` | Manage custom prompt aliases (e.g., `/poem`, `/fixcode`) |
 | `/recall` | Inject long-term memories from previous sessions into context |
 | `/debug` | Toggle verbose raw API response and tool-calling logs |
+| `/trim` | Force manual context trim (Semantic Smart Trim or standard FIFO) |
 | `/resetkey` | Permanently delete the encrypted API key from this machine |
 | `/clear` | Wipe conversation history and reset the current context |
-| `exit` | Gracefully quit the session |
+| `/exit` | Gracefully quit the session |
 
 ---
 
 ## Extensibility: Building Custom Tools
+
 
 The heart of Gemma CLI is its **Dynamic Tool Loader**. To give Gemma a new capability, simply drop a `.ps1` file into the `tools/` folder. The loader will automatically validate it and teach Gemma how to use it.
 
@@ -230,7 +235,7 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 * Backend Agnostic
 
-* Speech to text feature
+* Speech to text feature ✓
 
 * Text to Speech feature ✓
 
@@ -246,6 +251,24 @@ This is an open-source project by the community, for the community. Whether you 
 2.  Add your tool to `more_tools/` or library fix to `lib/`.
 3.  Ensure Pester tests in `tests/` pass.
 4.  Submit a PR!
+
+---
+
+## 🛠️ Troubleshooting
+
+### 1. PowerShell Scripts Won't Run (Execution Policy)
+**Issue:** You see an error like `...cannot be loaded because running scripts is disabled on this system.`
+**Solution:** Windows blocks scripts downloaded from the internet by default. Run this command in a PowerShell terminal to allow locally created and signed remote scripts:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+Alternatively, you can right-click `GemmaCLI.ps1`, select **Properties**, and check the **Unblock** box at the bottom.
+
+### 2. Emojis or Status Boxes Look Corrupted
+**Issue:** UI elements like checkmarks or status bar boxes appear as blocks (`□`) or gibberish.
+**Solution:** This occurs when the terminal or font doesn't support full Unicode.
+*   **Best Fix:** Use **Windows Terminal** (recommended) for perfect rendering.
+*   **Quick Fix:** Ensure your console font is set to a modern font like **Cascadia Code**, **Consolas**, or **JetBrains Mono**.
 
 ---
 
