@@ -1,4 +1,4 @@
-# Gemma CLI: The Professional PowerShell Interface for Gemma 3
+# Gemma CLI: AI Agent in your terminal
 
 ![Version: 0.7.0](https://img.shields.io/badge/Version-0.7.0-green)
 ![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
@@ -19,7 +19,7 @@ The CLI features a custom-built rendering engine that provides structured feedba
 
 ---
 
-## 🛠️ Tool Library (35+)
+## 🛠️ Tool Library (45+)
 
 Gemma CLI features a massive suite of specialized tools.
 
