@@ -1,17 +1,11 @@
 # ===============================================
-# GemmaCLI Tool - audioedit.ps1 v1.3.0
+# GemmaCLI Tool - audioedit.ps1 v1.5.0
 # Responsibility: Audio editing via FFmpeg (Gyan.FFmpeg v8.1+)
-# Supported operations:
-#   trim        - Cut a clip by start time and duration/end
-#   split       - Split a file at a timestamp into two files
-#   concat      - Join multiple audio files into one
-#   convert     - Re-encode to a different format / codec
-#   volume      - Adjust volume by dB or multiplier
-#   normalize   - Normalize loudness to EBU R128 target (-23 LUFS default)
-#   fade        - Apply fade-in and/or fade-out
-#   speed       - Change playback speed (pitch-corrected via atempo)
-#   channels    - Convert stereo<->mono or extract a channel
-#   metadata    - Read or write audio file tags (title, artist, album, etc.)
+#
+# EDIT      trim, split, insert, overwrite, concat, mix
+# EFFECTS   volume, normalize, fade, speed, channels
+# GENERATE  silence, sound
+# UTILITY   metadata, convert
 # ===============================================
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -545,6 +539,221 @@ function Op-Metadata {
     return "ERROR: 'action' must be 'read', 'write', or 'strip'. Got: '$action'"
 }
 
+function Op-Mix {
+    param($ffmpeg, [string]$file_paths, [string]$weights, [string]$duration_mode, [string]$output_format)
+    if ([string]::IsNullOrWhiteSpace($file_paths)) {
+        return "ERROR: 'file_paths' is required — provide a comma-separated list of files (at least 2)."
+    }
+    $files = $file_paths -split "," | ForEach-Object { $_.Trim().Trim("'").Trim('"') }
+    if ($files.Count -lt 2) {
+        return "ERROR: mix requires at least 2 audio files."
+    }
+    foreach ($f in $files) {
+        if (-not (Test-Path $f)) { return "ERROR: File not found: '$f'" }
+    }
+    $numInputs   = $files.Count
+    $inputLabels = 0..($numInputs-1) | ForEach-Object { "[$($_):a]" }
+    $durationMode = if ($duration_mode) { $duration_mode.Trim().ToLower() } else { "longest" }
+    if ($durationMode -notin @("shortest", "longest", "first")) {
+        return "ERROR: 'duration_mode' must be one of: shortest, longest, first. Got: '$duration_mode'"
+    }
+    $amixOpts = "inputs=$numInputs:duration=$durationMode"
+    if ($weights) {
+        $weightsTrim = $weights.Trim()
+        $amixOpts += ":weights=`"$weightsTrim`""
+    }
+    $filterStr = "$($inputLabels -join '')amix=$amixOpts"
+    $ext = if ($output_format) {
+               ".$($output_format.TrimStart('.'))"
+           } else {
+               [System.IO.Path]::GetExtension($files[0])
+           }
+    $out = Get-AudioOutputPath $files[0] "mixed" ($ext.TrimStart('.'))
+    $ffArgs = @("-y")
+    foreach ($f in $files) { $ffArgs += @("-i", $f) }
+    $ffArgs += @("-filter_complex", $filterStr, $out)
+    $r = Run-FFmpeg $ffmpeg $ffArgs
+    if ($r.ExitCode -ne 0) { return "ERROR: FFmpeg mix failed.`n$($r.Stderr)" }
+    $msg = "✅ Mixed $($files.Count) tracks -> $out"
+    if ($weights) { $msg += " (weights: $weights)" }
+    return "CONSOLE::$msg::END_CONSOLE::OK: Mixed $($files.Count) audio tracks to '$out'"
+}
+
+function Op-Generate {
+    param(
+        $ffmpeg,
+        [string]$type,           # "silence" | "sine" | "noise" | "square" | "sawtooth"
+        [string]$duration,       # Total duration or per-tone duration
+        [string]$frequencies,    # Comma-separated Hz values (e.g. "440,880")
+        [string]$durations,      # Per-tone durations (e.g. "1,1") - matches frequencies count
+        [string]$output_format,
+        [string]$output_path,
+        [string]$sample_rate,
+        [string]$channels,
+        [string]$volume,         # Optional: attenuation (e.g. "-12dB" or "0.5")
+        [string]$fade_in,        # Optional: fade-in duration in seconds
+        [string]$fade_out        # Optional: fade-out duration in seconds
+    )
+
+    # ── Validation ──
+    if ([string]::IsNullOrWhiteSpace($type)) { $type = "silence" }
+    $type = $type.Trim().ToLower()
+
+    $validTypes = @("silence", "sine", "noise", "square", "sawtooth")
+    if ($type -notin $validTypes) {
+        return "ERROR: 'type' must be one of: $($validTypes -join ', '). Got: '$type'"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($duration) -and [string]::IsNullOrWhiteSpace($durations)) {
+        return "ERROR: 'duration' (total) or 'durations' (per-segment) is required."
+    }
+
+    # ── Defaults ──
+    $sr  = if ($sample_rate) { $sample_rate } else { "44100" }
+    $ch  = if ($channels)    { $channels }    else { "2" }
+    $fmt = if ($output_format) { $output_format.TrimStart('.') } else { "wav" }
+    $chLayout = if ($ch -eq '1') { 'mono' } else { 'stereo' }
+
+    # ── Output Path ──
+    if ($output_path) {
+        $out = $output_path
+    } else {
+        $ts     = (Get-Date).ToString("yyyyMMdd_HHmmss")
+        $suffix = if ($type -eq "silence") { "silence" } else { "tone_${type}" }
+        $out    = Join-Path ([System.IO.Path]::GetTempPath()) "${suffix}_$ts.$fmt"
+    }
+
+    # ── Build FFmpeg Arguments ──
+    $ffArgs    = @("-y")
+    $durList   = @()
+    $freqList  = @()
+
+    switch ($type) {
+        "silence" {
+            $totalDur = if ($duration) { $duration } else {
+                ($durations -split "," | ForEach-Object { [double]$_.Trim() } | Measure-Object -Sum).Sum
+            }
+            $ffArgs += @("-f", "lavfi", "-i", "anullsrc=channel_layout=$chLayout`:sample_rate=$sr", "-t", $totalDur)
+        }
+
+        default {
+            # Parse frequencies and per-segment durations
+            $freqList = if ($frequencies) {
+                $frequencies -split "," | ForEach-Object { $_.Trim() }
+            } else { @("440") }
+
+            $durList = if ($durations) {
+                $durations -split "," | ForEach-Object { $_.Trim() }
+            } elseif ($duration) {
+                $segDur = [double]$duration / $freqList.Count
+                $freqList | ForEach-Object { $segDur.ToString([System.Globalization.CultureInfo]::InvariantCulture) }
+            } else { $freqList | ForEach-Object { "1" } }
+
+            if ($freqList.Count -ne $durList.Count) {
+                return "ERROR: Frequency count ($($freqList.Count)) must match duration count ($($durList.Count))."
+            }
+
+            foreach ($freq in $freqList) {
+                if ($freq -notmatch '^\d+(\.\d+)?$') {
+                    return "ERROR: Invalid frequency '$freq'. Use Hz value (e.g. 440)."
+                }
+            }
+
+            $sources = for ($i = 0; $i -lt $freqList.Count; $i++) {
+                $freq = $freqList[$i]; $dur = $durList[$i]
+                switch ($type) {
+                    "sine"     { "sine=frequency=$freq`:duration=$dur`:sample_rate=$sr" }
+                    "noise"    { "anoisesrc=a=0.5:c=pink:duration=$dur`:sample_rate=$sr" }
+                    "square"   { "aevalsrc=exprs='0.5*sgn(sin(2*PI*$freq*t))':duration=$dur`:sample_rate=$sr" }
+                    "sawtooth" { "aevalsrc=exprs='0.5*2*(mod($freq*t,1)-0.5)':duration=$dur`:sample_rate=$sr" }
+                }
+            }
+
+            if ($sources.Count -eq 1) {
+                $ffArgs += @("-f", "lavfi", "-i", $sources[0])
+            } else {
+                # Multi-segment: feed each source as a separate lavfi input, concat via filter_complex
+                foreach ($src in $sources) { $ffArgs += @("-f", "lavfi", "-i", $src) }
+                $concatInputs = (0..($sources.Count - 1) | ForEach-Object { "[$($_):a]" }) -join ""
+                $ffArgs += @("-filter_complex", "$($concatInputs)concat=n=$($sources.Count):v=0:a=1[out]", "-map", "[out]")
+            }
+        }
+    }
+
+    # ── Post-processing filters (volume, fade) ──
+    $postFilters = @()
+    if ($volume)   { $postFilters += "volume=$volume" }
+    if ($fade_in)  { $postFilters += "afade=t=in:st=0:d=$fade_in" }
+
+    if ($fade_out) {
+        $totalDurSec = if ($duration) {
+            [double]$duration
+        } elseif ($durList.Count -gt 0) {
+            ($durList | ForEach-Object { [double]$_ } | Measure-Object -Sum).Sum
+        } else { 0 }
+        $fadeStart = [Math]::Max(0, $totalDurSec - [double]$fade_out)
+        $ic = [System.Globalization.CultureInfo]::InvariantCulture
+        $postFilters += "afade=t=out:st=$($fadeStart.ToString('F6', $ic)):d=$fade_out"
+    }
+
+    if ($postFilters.Count -gt 0) {
+        # If filter_complex is already in use (multi-segment), chain post-filters into it
+        $fcIdx = [Array]::IndexOf($ffArgs, "-filter_complex")
+        if ($fcIdx -ge 0) {
+            $ffArgs[$fcIdx + 1] = $ffArgs[$fcIdx + 1] -replace '\[out\]$', ",$($postFilters -join ',')[out]"
+        } else {
+            $ffArgs += @("-af", ($postFilters -join ","))
+        }
+    }
+
+    if ($fmt -in @("mp3", "aac", "ogg", "m4a")) { $ffArgs += @("-q:a", "9") }
+    $ffArgs += $out
+
+    $r = Run-FFmpeg $ffmpeg $ffArgs
+    if ($r.ExitCode -ne 0) { return "ERROR: FFmpeg generation failed.`n$($r.Stderr)" }
+
+    $desc = switch ($type) {
+        "silence" { "silence ($duration)" }
+        "sine"    { if ($freqList.Count -eq 1) { "sine $($freqList[0])Hz" } else { "multi-tone sine ($($freqList.Count) segments)" } }
+        default   { "$type sound" }
+    }
+    return "CONSOLE::✅ Generated $desc -> $out::END_CONSOLE::OK: Generated $desc saved to '$out'"
+}
+
+function Op-Loop {
+    # Loops an audio file to a target duration using FFmpeg's aloop filter.
+    # aloop with a large count + -t is the canonical lossless approach:
+    # the filter buffers the entire input, repeats it N times, then -t hard-trims the output.
+    param($ffmpeg, $ffprobe, [string]$file_path, [string]$duration, [string]$loop_count, [string]$output_format)
+
+    if (-not (Test-Path $file_path)) { return "ERROR: File not found: '$file_path'" }
+    if ([string]::IsNullOrWhiteSpace($duration) -and [string]::IsNullOrWhiteSpace($loop_count)) {
+        return "ERROR: Provide 'duration' (target length, e.g. '30') and/or 'loop_count' (number of loops, e.g. '3')."
+    }
+
+    # Determine the loop count to pass to aloop.
+    # If the caller only gives a duration, we use a large sentinel and rely on -t to cut it.
+    # If the caller only gives loop_count, use that directly (no -t trim needed).
+    $loopN = if ($loop_count) { [int]$loop_count } else { 9999 }
+
+    # aloop's size parameter must cover the entire input in samples.
+    # 2e+09 is safely larger than any audio file FFmpeg will hold in its filter buffer.
+    $sizeArg = "2147483647"  # INT32_MAX — safe upper bound for aloop buffer
+
+    $ext = if ($output_format) { ".$($output_format.TrimStart('.'))" } else { [System.IO.Path]::GetExtension($file_path) }
+    $out = Get-AudioOutputPath $file_path "looped" ($ext.TrimStart('.'))
+
+    $ffArgs = @("-y", "-i", $file_path, "-filter_complex", "aloop=$loopN`:size=$sizeArg")
+    if ($duration) { $ffArgs += @("-t", $duration) }
+    $ffArgs += $out
+
+    $r = Run-FFmpeg $ffmpeg $ffArgs
+    if ($r.ExitCode -ne 0) { return "ERROR: FFmpeg loop failed.`n$($r.Stderr)" }
+
+    $desc = if ($duration) { "looped to ${duration}s" } else { "looped x$loopN" }
+    return "CONSOLE::✅ $desc -> $out::END_CONSOLE::OK: $desc saved to '$out'"
+}
+
 # ── Main Dispatch ─────────────────────────────────────────────────────────────
 
 function Invoke-AudioEditTool {
@@ -588,7 +797,18 @@ function Invoke-AudioEditTool {
         [string]$year,
         [string]$genre,
         [string]$comment,
-        [string]$track
+        [string]$track,
+        # mix
+        [string]$weights,
+        [string]$duration_mode,
+        # generate
+        [string]$type,
+        [string]$frequencies,
+        [string]$durations,
+        [string]$output_path,
+        [string]$volume,
+        # loop
+        [string]$loop_count
     )
 
     $ffmpeg  = Find-FFmpeg
@@ -618,9 +838,12 @@ function Invoke-AudioEditTool {
         "fade"      { return Op-Fade     $ffmpeg $ffprobe $file_path $fade_in $fade_out }
         "speed"     { return Op-Speed    $ffmpeg $file_path $speed }
         "channels"  { return Op-Channels $ffmpeg $file_path $mode }
-        "metadata"  { return Op-Metadata $ffmpeg $ffprobe $file_path $action $title $artist $album $year $genre $comment $track }
+        "metadata"  { return Op-Metadata  $ffmpeg $ffprobe $file_path $action $title $artist $album $year $genre $comment $track }
+        "mix"       { return Op-Mix       $ffmpeg $file_paths $weights $duration_mode $output_format }
+        "generate"  { return Op-Generate  $ffmpeg $type $duration $frequencies $durations $output_format $output_path $sample_rate $channels $volume $fade_in $fade_out }
+        "loop"      { return Op-Loop      $ffmpeg $ffprobe $file_path $duration $loop_count $output_format }
         default {
-            return "ERROR: Unknown operation '$operation'. Valid operations: trim, split, insert, overwrite, concat, convert, volume, normalize, fade, speed, channels, metadata."
+            return "ERROR: Unknown operation '$operation'. Valid operations — Edit: trim, split, insert, overwrite, concat, mix | Effects: volume, normalize, fade, speed, channels | Generate: generate, loop | Utility: metadata, convert."
         }
     }
 }
@@ -636,59 +859,82 @@ $ToolMeta = @{
 Use this tool to perform audio editing operations via FFmpeg. Always confirm the file path exists before invoking.
 Choose 'operation' from the list below and supply only the parameters relevant to that operation.
 
-OPERATIONS:
-  trim        - Cut a clip. Requires: file_path, start. Optionally provide end_time OR duration (omit both to trim to end of file).
+── EDIT ────────────────────────────────────────────────────────────────────────
+  trim        - Cut a clip. Requires: file_path, start. Optional: end_time OR duration (omit both to trim to end of file).
   split       - Split into two files at a timestamp. Requires: file_path, split_at.
-  insert      - Insert or replace a section of audio with a new clip (atomic: handles split+rejoin in one call). Requires: file_path, insert_clip, insert_start. Optional: insert_end (if provided, the section from insert_start to insert_end is removed and replaced; if omitted, the clip is inserted at insert_start with nothing removed).
-  overwrite   - Paste a clip OVER the original audio at a timestamp WITHOUT changing the timeline length. The original is silenced underneath the clip for the clip's exact duration, then the original continues. Use this for dubbing, replacing a word/phrase, or laying a sound effect over existing audio. Requires: file_path, overwrite_clip, overwrite_at.
-  concat      - Join multiple files. Requires: file_paths (comma-separated list). Optional: output_format.
-  convert     - Re-encode to a new format. Requires: file_path, output_format (e.g. 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'). Optional: bitrate (e.g. '192k'), sample_rate (e.g. '44100').
+  insert      - Insert or replace a section with a new clip (atomic split+rejoin). Requires: file_path, insert_clip, insert_start. Optional: insert_end (if omitted, clip is inserted without removing audio).
+  overwrite   - Paste a clip OVER the original at a timestamp without changing timeline length. Requires: file_path, overwrite_clip, overwrite_at.
+  concat      - Join multiple files end-to-end. Requires: file_paths (comma-separated). Optional: output_format.
+  mix         - Sum multiple audio streams into one output. Supports per-track level weights and output duration policy. Requires: file_paths (comma-separated, min 2). Optional: weights (space-separated multipliers, e.g. '1 0.5 0.8'), duration_mode (shortest | longest | first, default: longest), output_format.
+
+── EFFECTS ─────────────────────────────────────────────────────────────────────
   volume      - Adjust volume. Requires: file_path, adjustment (e.g. '+6dB', '-3dB', or '1.5' multiplier).
   normalize   - EBU R128 loudness normalization (two-pass). Requires: file_path. Optional: target_lufs (default '-23').
-  fade        - Add fade-in and/or fade-out. Requires: file_path. Optional: fade_in (seconds), fade_out (seconds).
-  speed       - Change speed (pitch-corrected). Requires: file_path, speed (e.g. '1.5' = 50% faster, '0.75' = 75% speed). Range: 0.5–100.
-  channels    - Convert channel layout. Requires: file_path, mode (one of: mono, stereo, left, right).
-  metadata    - Read/write/strip tags. Requires: file_path, action (read | write | strip). For write: supply any of title, artist, album, year, genre, comment, track.
+  fade        - Apply fade-in and/or fade-out. Requires: file_path. Optional: fade_in (seconds), fade_out (seconds).
+  speed       - Change speed (pitch-corrected via atempo). Requires: file_path, speed (e.g. '1.5', '0.75'). Range: 0.5–100.
+  channels    - Convert channel layout. Requires: file_path, mode (mono | stereo | left | right).
 
-OUTPUT: All operations produce a new auto-named file in the same directory as the input. The original is never modified.
+── GENERATE ────────────────────────────────────────────────────────────────────
+  generate    - Synthesize audio from scratch. Requires: type (silence | sine | noise | square | sawtooth), plus duration OR durations.
+                For sine/square/sawtooth: optional frequencies (comma-separated Hz, e.g. '440,880') and matching durations (e.g. '2,2').
+                Optional: output_format (default wav), output_path, sample_rate (default 44100), channels (default 2), volume, fade_in, fade_out.
+  loop        - Extend a file by looping it. Requires: file_path, plus duration (target length, e.g. '30') and/or loop_count (integer). Optional: output_format.
+
+── UTILITY ─────────────────────────────────────────────────────────────────────
+  metadata    - Read/write/strip tags. Requires: file_path, action (read | write | strip). For write: any of title, artist, album, year, genre, comment, track.
+  convert     - Re-encode to a new format. Requires: file_path, output_format (e.g. 'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'). Optional: bitrate (e.g. '192k'), sample_rate (e.g. '44100').
+
+OUTPUT: All operations produce a new auto-named file in the same directory as the input (generate/loop use the system temp dir when no output_path is given). The original is never modified.
 FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmpeg supports.
 "@
 
-    Description = "Audio editor using FFmpeg: trim, split, insert (splice a clip in), overwrite (paste a clip over original), concat, convert, volume, normalize, fade, speed change, channel conversion, and metadata read/write."
+    Description = "Audio editor using FFmpeg — Edit: trim, split, insert, overwrite, concat, mix | Effects: volume, normalize, fade, speed, channels | Generate: generate (silence/sine/noise/square/sawtooth), loop | Utility: metadata, convert."
 
     Parameters = @{
-        operation     = "string - Required. One of: trim, split, insert, overwrite, concat, convert, volume, normalize, fade, speed, channels, metadata."
-        file_path     = "string - Path to the input audio file (not needed for 'concat', which uses file_paths instead)."
+        operation     = "string - Required. One of: trim, split, insert, overwrite, concat, mix, volume, normalize, fade, speed, channels, generate, loop, metadata, convert."
+        file_path     = "string - Path to the input audio file (not used by concat, mix, or generate)."
         # trim
         start         = "string - [trim] Start time (e.g. '00:00:10' or '10')."
-        end_time      = "string - [trim] End time (e.g. '00:01:30'). Use instead of duration. Omit both end_time and duration to trim from start to end of file."
-        duration      = "string - [trim] Duration to keep (e.g. '30' for 30s). Use instead of end_time."
+        end_time      = "string - [trim] End time (e.g. '00:01:30'). Use instead of duration."
+        duration      = "string - [trim/generate/loop] Duration — kept clip length for trim; total output length for generate/loop."
         # split
         split_at      = "string - [split] Timestamp where the file is split into two parts."
         # insert
-        insert_clip   = "string - [insert] Path to the audio clip to insert/replace with."
-        insert_start  = "string - [insert] Timestamp in the original where the replacement begins (e.g. '00:05:00')."
-        insert_end    = "string - [insert] Optional. Timestamp where the replaced section ends (e.g. '00:06:00'). If omitted, clip is inserted at insert_start with no audio removed."
+        insert_clip   = "string - [insert] Path to the audio clip to insert."
+        insert_start  = "string - [insert] Timestamp where insertion begins (e.g. '00:05:00')."
+        insert_end    = "string - [insert] Optional. Timestamp where replaced section ends. If omitted, no audio is removed."
         # overwrite
         overwrite_clip = "string - [overwrite] Path to the clip to paste over the original."
-        overwrite_at   = "string - [overwrite] Timestamp where the overwrite begins (e.g. '00:05:00' or '300'). The clip's full duration is pasted over the original from this point." 
-        # concat
-        file_paths    = "string - [concat] Comma-separated list of file paths to join in order."
+        overwrite_at   = "string - [overwrite] Timestamp where the overwrite begins (e.g. '00:05:00' or '300')."
+        # concat / mix
+        file_paths    = "string - [concat/mix] Comma-separated list of file paths."
+        # mix
+        weights       = "string - [mix] Space-separated level multiplier per input track (e.g. '1 0.5 0.8'). Omit for equal mixing."
+        duration_mode = "string - [mix] Output duration policy: shortest | longest | first. Default: longest."
         # convert
-        output_format = "string - [convert/concat] Target file extension/format (e.g. 'mp3', 'wav', 'flac')."
+        output_format = "string - [convert/concat/mix/generate/loop] Target file extension/format (e.g. 'mp3', 'wav', 'flac')."
         bitrate       = "string - [convert] Audio bitrate (e.g. '192k', '320k')."
-        sample_rate   = "string - [convert] Sample rate in Hz (e.g. '44100', '48000')."
+        sample_rate   = "string - [convert/generate] Sample rate in Hz (e.g. '44100', '48000')."
         # volume
         adjustment    = "string - [volume] dB adjustment (e.g. '+6dB', '-3dB') or linear multiplier (e.g. '1.5')."
         # normalize
         target_lufs   = "string - [normalize] Target loudness in LUFS (e.g. '-23'). Default is '-23' (EBU R128)."
         # fade
-        fade_in       = "string - [fade] Fade-in duration in seconds (e.g. '2')."
-        fade_out      = "string - [fade] Fade-out duration in seconds (e.g. '3')."
+        fade_in       = "string - [fade/generate] Fade-in duration in seconds (e.g. '2')."
+        fade_out      = "string - [fade/generate] Fade-out duration in seconds (e.g. '3')."
         # speed
         speed         = "string - [speed] Playback speed multiplier (e.g. '1.5' = faster, '0.75' = slower). Range 0.5-100."
         # channels
         mode          = "string - [channels] Channel layout: 'mono' (mix to mono), 'stereo' (duplicate mono), 'left' (extract left), 'right' (extract right)."
+        # generate
+        type          = "string - [generate] Sound type: silence | sine | noise | square | sawtooth."
+        frequencies   = "string - [generate] Comma-separated Hz values for tonal types (e.g. '440,880'). Default: 440."
+        durations     = "string - [generate] Per-segment durations in seconds matching frequency count (e.g. '2,2'). Use instead of or alongside duration."
+        output_path   = "string - [generate/loop] Full output file path. If omitted, a timestamped file is created in the system temp directory."
+        volume        = "string - [generate] Volume level applied after synthesis (e.g. '-12dB' or '0.5')."
+        channels      = "string - [generate] Number of output channels: '1' (mono) or '2' (stereo, default)."
+        # loop
+        loop_count    = "string - [loop] Number of times to loop the file (e.g. '3'). Combine with duration to hard-trim the result."
         # metadata
         action        = "string - [metadata] 'read' to display tags, 'write' to set tags, 'strip' to remove all tags."
         title         = "string - [metadata write] Track title tag."
@@ -710,16 +956,23 @@ FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmp
             "insert"    { "📌" }
             "overwrite" { "🎙️" }
             "concat"    { "🔗" }
-            "convert"   { "🔄" }
+            "mix"       { "🎛️" }
             "volume"    { "🔊" }
             "normalize" { "📊" }
             "fade"      { "🌅" }
             "speed"     { "⚡" }
             "channels"  { "🎚️" }
+            "generate"  { "🎼" }
+            "loop"      { "🔁" }
             "metadata"  { "🏷️" }
+            "convert"   { "🔄" }
             default     { "🎵" }
         }
-        $target = if ($p.file_path) { Split-Path $p.file_path -Leaf } elseif ($p.file_paths) { "multiple files" } else { "?" }
+        $target = if ($p.file_path) { Split-Path $p.file_path -Leaf } `
+                  elseif ($p.file_paths) { "multiple files" } `
+                  elseif ($p.output_path) { Split-Path $p.output_path -Leaf } `
+                  elseif ($p.type) { $p.type } `
+                  else { "?" }
         "$icon audioedit [$($p.operation)] -> $target"
     }
 

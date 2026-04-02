@@ -71,6 +71,8 @@ function Invoke-ResizeImageTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "resize_image"
+    RendersToConsole = $false
+    Category    = @("Digital Media Production")
     Behavior    = "Use this tool to resize an image to specific dimensions. Supported formats: PNG, JPG, JPEG, and GIF. Does NOT support WEBP or HEIC. Note that this tool will stretch the image to fit the requested width and height exactly."
     Description = "Resizes/Stretches an image (PNG, JPG, GIF). Specify width and height."
     Parameters  = @{

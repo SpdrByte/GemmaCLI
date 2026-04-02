@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - nanobanana.ps1 v0.3.1
+# GemmaCLI Tool - nanobanana.ps1 v0.4.0
 # Responsibility: Two-phase image generation with precise model-specific ratio filtering.
 # ===============================================
 
@@ -14,30 +14,30 @@ function Invoke-NanoBananaTool {
     )
 
     # --- Feature-Based Model Selection ---
-    $modelId = "gemini-2.5-flash-image" # Default "Nano" (2.5 Flash)
+    $modelId = Resolve-ModelId "gemini-stable-fast" # Default "Nano" (2.5 Flash)
 
     # User tier preference mapping
     $tierMapping = @{
-        "nano" = "gemini-2.5-flash-image"
-        "2"    = "gemini-3.1-flash-image-preview"
-        "pro"  = "gemini-3-pro-image-preview"
+        "nano" = "gemini-stable-fast"
+        "2"    = "gemini-vision"
+        "pro"  = "gemini-vision-hd"
     }
 
     if ($model -ne "auto" -and $tierMapping.ContainsKey($model.ToLower())) {
-        $modelId = $tierMapping[$model.ToLower()]
+        $modelId = Resolve-ModelId $tierMapping[$model.ToLower()]
     }
 
     # Resolution/Feature Overrides based on user data
     if ($image_size -eq "512") {
         # Only 3.1 Flash supports 512
-        $modelId = "gemini-3.1-flash-image-preview"
+        $modelId = Resolve-ModelId "gemini-vision"
     }
     elseif ($image_size -eq "2K" -or $image_size -eq "4K") {
         if ($model -eq "2") {
-            $modelId = "gemini-3.1-flash-image-preview"
+            $modelId = Resolve-ModelId "gemini-vision"
         } else {
             # Default to Pro for high res unless Tier 2 requested
-            $modelId = "gemini-3-pro-image-preview"
+            $modelId = Resolve-ModelId "gemini-vision-hd"
         }
     }
 
@@ -48,7 +48,7 @@ function Invoke-NanoBananaTool {
     # Set B (3 Pro & 2.5 Flash): Standard ratios only
     $ratios_standard = @("1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9")
 
-    $availableRatios = if ($modelId -eq "gemini-3.1-flash-image-preview") { $ratios_31_flash } else { $ratios_standard }
+    $availableRatios = if ($modelId -eq (Resolve-ModelId "gemini-vision")) { $ratios_31_flash } else { $ratios_standard }
 
     # --- Phase 1: Ratio Confirmation ---
     if ($aspect_ratio -eq "PENDING") {

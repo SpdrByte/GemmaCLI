@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - write_story.ps1 v0.1.2
+# GemmaCLI Tool - write_story.ps1 v0.2.0
 # Responsibility: Sends conversation history to Gemini Flash 2.5 Lite
 #                 and writes the generated story to a .txt file.
 # ===============================================
@@ -52,7 +52,7 @@ Write the complete story now. Give it a title on the first line, then a blank li
 
     # --- API Call ---
     try {
-        $model = "gemini-2.5-flash-lite"
+        $model = Resolve-ModelId "gemini-lite"
         $uri   = "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=$script:API_KEY"
 
         $body = @{

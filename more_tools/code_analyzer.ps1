@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - code_analyzer.ps1 v0.1.1
+# GemmaCLI Tool - code_analyzer.ps1 v0.2.0
 # Responsibility: Analyze code via dual agent pipeline
 # ===============================================
 
@@ -87,24 +87,25 @@ $($params.code)
 "@
 
         # ====================== CALL API WITH FALLBACK ======================
-        $models = @("gemini-3-flash-preview", "gemini-2.5-flash", "gemma-3-27b-it")
+        $handles = @("gemini-fast", "gemini-stable-fast", "gemma-ultra")
         $result = $null
 
-        foreach ($model in $models) {
-            $backend = if ($model -match "gemini") { "gemini" } else { "gemma" }
-            $uri = "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=$($script:API_KEY)"
+        foreach ($h in $handles) {
+            $modelId = Resolve-ModelId $h
+            $backend = if ($modelId -match "gemini") { "gemini" } else { "gemma" }
+            $uri = "https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=$($script:API_KEY)"
             
             $text = Invoke-SingleTurnApi `
                 -uri $uri `
                 -prompt $prompt `
-                -spinnerLabel "Analyzing with $model..." `
+                -spinnerLabel "Analyzing with $h ($modelId)..." `
                 -backend $backend
 
             if ($text -and -not ($text -like "ERROR:*")) {
                 $result = $text
                 break # Success
             } else {
-                Write-Host "  $model failed or was cancelled." -ForegroundColor DarkRed
+                Write-Host "  $h failed or was cancelled." -ForegroundColor DarkRed
             }
         }
 

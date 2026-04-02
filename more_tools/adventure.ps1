@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - adventure.ps1 v0.2.4
+﻿# ===============================================
+# GemmaCLI Tool - adventure.ps1 v0.3.0
 # Responsibility: Manages state for a text adventure / RPG game session.
 #   Gemma acts as Dungeon Master. This tool handles the mechanical layer:
 #   characters, dice rolls, inventory, HP, combat turns, locations, and save state.
@@ -123,11 +123,24 @@ function Get-Character($state, [string]$name) {
 
 # ── Helper: Format a character sheet ─────────────────────────────────────────
 function Format-CharacterSheet($c) {
-    $equip = if ($c.equipment -and $c.equipment.Count -gt 0) { $c.equipment -join ", " } else { "(none)" }
-    $cons  = if ($c.consumables -and $c.consumables.Count -gt 0) { $c.consumables -join ", " } else { "(none)" }
-    $extra = if ($c.type -eq "player") { "Gold:        $($c.gold)" } else { "Disposition: $($c.disposition)`n  Notes:       $($c.notes)" }
+    # Ensure we handle potential hashtables in equipment/consumables gracefully
+    $formatItems = {
+        param($items)
+        if (-not $items -or $items.Count -eq 0) { return "(none)" }
+        return ($items | ForEach-Object { 
+            if ($_ -is [System.Collections.IDictionary]) { "Object" } else { $_ } 
+        }) -join ", "
+    }
+
+    $equip = &$formatItems $c.equipment
+    $cons  = &$formatItems $c.consumables
+    
+    $sexStr = if ($c.sex -and $c.sex -ne "unknown") { " ($($c.sex))" } else { "" }
+    $extra = if ($c.type -eq "player") { "Gold:        $($c.gold)" } else { "Disposition: $($c.disposition)" }
+    $notesStr = if ($c.notes) { "`n  Description: $($c.notes)" } else { "" }
+
     return @"
-  [$($c.type.ToUpper())] $($c.name)
+  [$($c.type.ToUpper())] $($c.name)$sexStr
   HP:          $($c.hp) / $($c.max_hp)
   AC:          $($c.ac)
   Location:    $($c.location)
@@ -135,7 +148,7 @@ function Format-CharacterSheet($c) {
   Armor:       $($c.armor)
   Equipment:   $equip
   Consumables: $cons
-  $extra
+  $extra$notesStr
 "@
 }
 
@@ -208,7 +221,25 @@ function Invoke-AdventureTool {
             }
 
             $lastLogs = ($state.log | Select-Object -Last 5) -join "`n  "
-            $combatNote = if ($state.combat.active) { "`n⚔️  COMBAT ACTIVE — Round $($state.combat.round)" } else { "" }
+            
+            $combatNote = ""
+            if ($state.combat.active) {
+                $combatNote = "`n⚔️  COMBAT ACTIVE — Round $($state.combat.round)"
+                if ($state.combat.order) {
+                    $orderItems = @()
+                    for ($i=0; $i -lt $state.combat.order.Count; $i++) {
+                        $name = $state.combat.order[$i]
+                        $char = Get-Character $state $name
+                        $hpInfo = if ($char) { " ($($char.hp)/$($char.max_hp) HP)" } else { "" }
+                        if ($i -eq $state.combat.turn_index) {
+                            $orderItems += "    > $name$hpInfo < (CURRENT TURN)"
+                        } else {
+                            $orderItems += "      $name$hpInfo"
+                        }
+                    }
+                    $combatNote += "`n  Initiative Order:`n" + ($orderItems -join "`n")
+                }
+            }
 
             return (Get-LogNudge $state) + @"
 ═══════════════════════════════════

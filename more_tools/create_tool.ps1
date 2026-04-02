@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - create_tool.ps1 v1.0.0
+# GemmaCLI Tool - create_tool.ps1 v1.1.0
 # Responsibility: Autonomous Tool Creator via Multi-Agent Evolutionary Pipeline
 # Uses native AST parsing and dual-agent feedback loops.
 # ===============================================
@@ -15,10 +15,10 @@ function Invoke-CreateTool {
 
     # Define API Endpoints
     $baseUri = "https://generativelanguage.googleapis.com/v1beta/models"
-    $architectUri = "$baseUri/gemini-2.5-pro:generateContent?key=$script:API_KEY"
-    $reviewerUri  = "$baseUri/gemini-2.5-flash:generateContent?key=$script:API_KEY"
-    $fixerUri     = "$baseUri/gemini-2.5-flash:generateContent?key=$script:API_KEY"
-    $synthesisUri = "$baseUri/gemini-2.5-pro:generateContent?key=$script:API_KEY"
+    $architectUri = "$baseUri/$(Resolve-ModelId 'gemini-stable-pro'):generateContent?key=$script:API_KEY"
+    $reviewerUri  = "$baseUri/$(Resolve-ModelId 'gemini-stable-fast'):generateContent?key=$script:API_KEY"
+    $fixerUri     = "$baseUri/$(Resolve-ModelId 'gemini-stable-fast'):generateContent?key=$script:API_KEY"
+    $synthesisUri = "$baseUri/$(Resolve-ModelId 'gemini-stable-pro'):generateContent?key=$script:API_KEY"
 
     # We need an API call helper that returns just the text, bypassing Start-Job if we're already in a Job
     function Call-LLM($uri, $systemInstruction, $userPrompt, $label) {
