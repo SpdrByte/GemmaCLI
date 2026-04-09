@@ -1,4 +1,4 @@
-# lib/History.ps1 v0.1.0
+﻿# lib/History.ps1 v0.1.0
 
 function Trim-History {
     param($hist, [int]$tokenBudget = 100000)
@@ -56,6 +56,10 @@ function Trim-History {
 function Invoke-EmbedText {
     param([string]$text)
     if ($text.Length -gt 8000) { $text = $text.Substring(0, 8000) }
+    
+    # Embedding quota is usually higher, but let's be safe
+    Invoke-RpmCheck -backend "gemini" 
+
     $modelId = Resolve-ModelId "embedding-lite"
     $uri = "$($script:BASE_URI_BASE)/${modelId}:embedContent?key=$($script:API_KEY)"
     if ($script:debugMode) { Write-Host " [SmartTrim] Embed URI: $($uri.Split('?')[0])" -ForegroundColor Yellow }

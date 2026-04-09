@@ -1,12 +1,48 @@
-# lib/Api.ps1 v0.1.0
+﻿# lib/Api.ps1 v0.1.2
 # Responsibility: Manages interactions with the Google Gemini API, including Job management and error handling.
 # Handles the Start-Job logic for API calls.
+
+function Get-StoredKey {
+    param([string]$keyName = "gemmacli")
+    $configDir  = Join-Path $env:APPDATA "GemmaCLI"
+    $configFile = Join-Path $configDir "${keyName}.xml"
+    if (Test-Path $configFile) {
+        try {
+            $secureString = Import-Clixml -Path $configFile
+            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
+            return [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        } catch { }
+    }
+    return $null
+}
+
+function Save-StoredKey {
+    param([string]$apiKey, [string]$keyName = "gemmacli")
+    $configDir  = Join-Path $env:APPDATA "GemmaCLI"
+    $configFile = Join-Path $configDir "${keyName}.xml"
+    if (-not (Test-Path $configDir)) { New-Item -Path $configDir -ItemType Directory -Force | Out-Null }
+    $secureString = ConvertTo-SecureString $apiKey -AsPlainText -Force
+    $secureString | Export-Clixml -Path $configFile
+}
+
+function Remove-StoredKey {
+    param([string]$keyName = "gemmacli")
+    $configDir  = Join-Path $env:APPDATA "GemmaCLI"
+
+    $configFile = Join-Path $configDir "${keyName}.xml"
+    if (Test-Path $configFile) {
+        Remove-Item $configFile -Force
+        return $true
+    }
+    return $false
+}
 
 function Resolve-ModelId {
     param([string]$Choice)
     $c = $Choice.Trim().ToLower()
-    if ($script:MODEL_REGISTRY -and $script:MODEL_REGISTRY.Contains($c)) { return $script:MODEL_REGISTRY[$c].id }
     if ($script:MODEL_REGISTRY) {
+        # Check if it's a hashtable or a PSCustomObject
+        if ($script:MODEL_REGISTRY.PSObject.Properties[$c]) { return $script:MODEL_REGISTRY.PSObject.Properties[$c].Value.id }
         foreach ($entry in $script:MODEL_REGISTRY.Values) { if ($entry.id -eq $c) { return $entry.id } }
     }
     Write-Warning "Unknown model '$Choice' or registry missing. Defaulting to gemma-3-27b-it."
@@ -30,6 +66,11 @@ function Get-GeminiUri {
     return "$($script:BASE_URI_BASE)/${modelId}:generateContent?key=$($script:API_KEY)" 
 }
 
+function Get-GeminiLiteUri {
+    $modelId = Resolve-ModelId "gemini-lite"
+    return "$($script:BASE_URI_BASE)/${modelId}:generateContent?key=$($script:API_KEY)"
+}
+
 function Get-SystemPrompt {
     if (-not $script:intelligence.system_prompts) { return $script:intelligence.system_prompt }
     $specific = $script:intelligence.system_prompts.PSObject.Properties[$script:MODEL]
@@ -38,31 +79,52 @@ function Get-SystemPrompt {
 }
 
 function Invoke-ModelGeneration {
-    param($uri, $contents, $gConfig, [bool]$skipCancelCheck = $false)
+    param($uri, $contents, $gConfig, [bool]$skipCancelCheck = $false, $tools = $null, $toolConfig = $null)
+
+    # Capture current setting from main thread to pass into the background job
+    $currentExpect = [System.Net.ServicePointManager]::Expect100Continue
 
     $script:apiJob = Start-Job -ScriptBlock {
-        param($uri, $contents, $gConfig)
+        param($uri, $contents, $gConfig, $tools, $toolConfig, $expectSetting)
+        
+        # Apply the setting from settings.json/main thread
+        [System.Net.ServicePointManager]::Expect100Continue = $expectSetting
+
         $payload = @{
             contents         = $contents
             generationConfig = $gConfig
-        } | ConvertTo-Json -Depth 20 -Compress
+        }
+        if ($null -ne $tools) { $payload["tools"] = $tools }
+        if ($null -ne $toolConfig) { $payload["toolConfig"] = $toolConfig }
+
+        $json = $payload | ConvertTo-Json -Depth 20 -Compress
         # Send as UTF8 bytes to avoid PowerShell string encoding issues
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
         try {
             Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes
         } catch {
             $detail = ""
             try {
-                $stream = $_.Exception.Response.GetResponseStream()
-                $reader = [System.IO.StreamReader]::new($stream)
-                $raw    = $reader.ReadToEnd()
-                $json   = $raw | ConvertFrom-Json
-                $detail = if ($json.error.message) { $json.error.message } else { $raw }
+                $response = $_.Exception.Response
+                if ($response) {
+                    $stream = $null
+                    $reader = $null
+                    try {
+                        $stream = $response.GetResponseStream()
+                        $reader = [System.IO.StreamReader]::new($stream)
+                        $raw    = $reader.ReadToEnd()
+                        $json   = $raw | ConvertFrom-Json
+                        $detail = if ($json.error.message) { $json.error.message } else { $raw }
+                    } finally {
+                        if ($reader) { $reader.Close(); $reader.Dispose() }
+                        if ($stream) { $stream.Close(); $stream.Dispose() }
+                    }
+                }
             } catch {}
             $msg = if ($detail) { $detail } else { $_.Exception.Message }
             [PSCustomObject]@{ apiError = $msg }
         }
-    } -ArgumentList $uri, $contents, $gConfig
+    } -ArgumentList $uri, $contents, $gConfig, $tools, $toolConfig, $currentExpect
 
     $cancelled = $false
     while ($script:apiJob.State -eq "Running") {
@@ -96,8 +158,8 @@ function Invoke-GemmaApi {
 
 function Invoke-RpmCheck {
     param([string]$backend = "gemma")
-    # Gemini Flash free tier: 15 RPM. Gemma 27B/12B: 2 RPM. Others: 5 RPM.
-    $rpm         = if ($backend -eq "gemini") { 15 } elseif ($script:MODEL -in @("gemma-3-27b-it","gemma-3-12b-it")) { 2 } else { 5 }
+    # Gemini Flash free tier: 15 RPM. Gemma 4/Gemma 3 27B/12B: 2 RPM. Others: 5 RPM.
+    $rpm         = if ($backend -eq "gemini") { 15 } elseif ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) { 2 } else { 5 }
     $windowStart = (Get-Date).AddSeconds(-60)
 
     if ($backend -eq "gemini") {
@@ -187,10 +249,10 @@ function Write-ApiLog {
 }
 
 function Invoke-SingleTurnApi {
-    param([string]$uri, [string]$prompt, [string]$spinnerLabel = "Thinking...", [string]$backend = "gemma")
+    param([string]$uri, [string]$prompt, [string]$spinnerLabel = "Thinking...", [string]$backend = "gemma", $tools = $null, $toolConfig = $null, $configOverride = $null)
     Invoke-RpmCheck -backend $backend
 
-    # 2-second gap enforced per backend independently — switching backends never triggers a wait
+    # 2-second gap enforced per backend independently
     if ($backend -eq "gemini") {
         $elapsed = ((Get-Date) - $script:lastApiCall_Gemini).TotalMilliseconds
         if ($elapsed -lt 2000) { Start-Sleep -Milliseconds (2000 - $elapsed) }
@@ -202,14 +264,36 @@ function Invoke-SingleTurnApi {
     }
 
     $contents = @(@{ role = "user"; parts = @(@{ text = $prompt }) })
-    $gConfig = @{ maxOutputTokens = 4096; temperature = 0.7; topP = 0.95 }
+    $gConfig = if ($null -ne $configOverride) { $configOverride } else { @{ maxOutputTokens = 4096; temperature = 0.7; topP = 0.95 } }
 
     # Detect if we are running inside a Start-Job (no interactive console)
     $isJob = ($null -ne $MyInvocation.MyCommand.ModuleName) -or ($host.Name -match "Server") -or ($null -eq [Console]::WindowWidth)
     
     Start-Spinner -Label $spinnerLabel
-    $resp = Invoke-ModelGeneration -uri $uri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob
+    $resp = Invoke-ModelGeneration -uri $uri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
     Stop-Spinner
+
+    # --- Cascading Fallbacks ---
+    if ($resp.apiError -and $backend -eq "gemini" -and ($resp.apiError -match "429|quota|RESOURCE_EXHAUSTED")) {
+        # Tier 2: Gemini Lite
+        $liteUri = Get-GeminiLiteUri
+        if ($uri -ne $liteUri) {
+            Write-Host " [Flash quota exceeded - falling back to Gemini Lite...]" -ForegroundColor Cyan
+            Start-Spinner -Label "Lite: $spinnerLabel"
+            $resp = Invoke-ModelGeneration -uri $liteUri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
+            Stop-Spinner
+        }
+
+        # Tier 3: Gemma 12b (Final Backup)
+        if ($resp.apiError -and ($resp.apiError -match "429|quota|RESOURCE_EXHAUSTED")) {
+            $gemmaId = Resolve-ModelId "gemma-heavy"
+            $gemmaUri = "$($script:BASE_URI_BASE)/${gemmaId}:generateContent?key=$($script:API_KEY)"
+            Write-Host " [Gemini Lite quota exceeded - falling back to Gemma 12b...]" -ForegroundColor Yellow
+            Start-Spinner -Label "Gemma: $spinnerLabel"
+            $resp = Invoke-ModelGeneration -uri $gemmaUri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
+            Stop-Spinner
+        }
+    }
 
     if ($resp.cancelled) { return "ERROR: Operation cancelled by user" }
     if ($resp.apiError)  { return "ERROR: $($resp.apiError)" }
@@ -218,6 +302,9 @@ function Invoke-SingleTurnApi {
         return "ERROR: $reason"
     }
     
+    # If using custom config, return the raw response object so tool can handle multi-modal data
+    if ($null -ne $configOverride) { return $resp }
+
     return $resp.candidates[0].content.parts[0].text.Trim()
 }
 
