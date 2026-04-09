@@ -1,5 +1,25 @@
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+
+# =========================================================================================
+# PRE-FLIGHT & AUTO-UNBLOCKER (Fix for GitHub / Internet Downloads)
+# =========================================================================================
+$script:scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+try {
+    # 1. Elevate the current session's policy so we can actually load our libraries.
+    # This ONLY affects this specific window/process, not your global system settings.
+    Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction SilentlyContinue
+
+    # 2. Recursively unblock all project files (Removes "Mark of the Web")
+    Get-ChildItem -Path $script:scriptDir -Recurse -Include *.ps1,*.js,*.json -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+} catch {
+    Write-Host "`n [!] Security Warning: Windows is blocking this script's libraries." -ForegroundColor Yellow
+    Write-Host " [!] Please run this command in a NEW PowerShell window to fix permanently:" -ForegroundColor Gray
+    Write-Host "     Unblock-File -Path '$PSCommandPath'`n" -ForegroundColor Cyan
+}
+
+# Disable Expect100Continue handshake to prevent 417 errors and reduce latency
+[System.Net.ServicePointManager]::Expect100Continue = $false
 
 # Ensure UTF-8 output for emoji and Unicode rendering
 
@@ -26,6 +46,10 @@ if (Test-Path $settingsPath) {
             foreach ($prop in $rawSettings.PSObject.Properties) {
                 $script:Settings[$prop.Name] = $prop.Value
             }
+            # Apply hidden network settings
+            if ($null -ne $script:Settings.disable_expect_100) {
+                [System.Net.ServicePointManager]::Expect100Continue = (-not $script:Settings.disable_expect_100)
+            }
         }
     } catch { }
 }
@@ -49,18 +73,14 @@ $script:BASE_URI_BASE = "https://generativelanguage.googleapis.com/v1beta/models
 
 # Tool limits mapped to model IDs (for legacy compatibility) or Handles
 $script:TOOL_LIMITS = @{
+    "gemma-4-31b-it" = 12
+    "gemma-4-26b-a4b-it" = 12
     "gemma-3-27b-it" = 12
     "gemma-3-12b-it" = 8
     "gemma-3-4b-it"  = 2
     "gemma-3n-e4b-it" = 2
     "gemma-3n-e2b-it" = 2
     "gemma-3-1b-it"  = 0
-}
-
-function Get-ModelLimit {
-    param([string]$modelId)
-    if ($script:TOOL_LIMITS.ContainsKey($modelId)) { return $script:TOOL_LIMITS[$modelId] }
-    return 10 # Default for new/unknown models
 }
 
 # 2. Source All Library Modules
@@ -76,45 +96,66 @@ $script:debugMode = $false
 # 4. Load API Key (Requires UI functions for Draw-Box)
 # ====================== SECURE API KEY STORAGE ======================
 $script:configDir  = Join-Path $env:APPDATA "GemmaCLI"
-$script:configFile = Join-Path $script:configDir "apikey.xml"
 
-function Get-SavedApiKey {
-    if (Test-Path $script:configFile) {
+function Initialize-TTS {
+    if (-not $global:GemmaTTS) {
         try {
-            $secureString = Import-Clixml -Path $script:configFile
-            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
-            return [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } catch { }
+            Add-Type -AssemblyName System.Speech
+            $global:GemmaTTS = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            # Default to a female voice if available
+            $global:GemmaTTS.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female)
+        } catch {
+            Write-Host "  [!] Could not initialize Windows TTS." -ForegroundColor Red
+            return $false
+        }
     }
-    return $null
+    return $true
+}
+
+function Format-TextForSpeech {
+    param([string]$text)
+    if ([string]::IsNullOrWhiteSpace($text)) { return "" }
+    
+    # Strip thoughts, channels, and code blocks
+    $clean = $text -replace '(?s)<thought>.*?</thought>', ''
+    $clean = $clean -replace '(?s)<\|channel>thought.*?<channel\|>', ''
+    $clean = $clean -replace '(?s)<code_block>.*?</code_block>', ' [Code block omitted] '
+    $clean = $clean -replace '(?s)```.*?```', ' [Code block omitted] '
+    
+    # Strip markdown markers
+    $clean = $clean -replace '\*\*', ''
+    $clean = $clean -replace '\*', ''
+    
+    return $clean.Trim()
 }
 
 function Save-ApiKey {
     param([string]$apiKey)
-    if (-not (Test-Path $script:configDir)) { New-Item -Path $script:configDir -ItemType Directory -Force | Out-Null }
-    $secureString = ConvertTo-SecureString $apiKey -AsPlainText -Force
-    $secureString | Export-Clixml -Path $script:configFile
+    Save-StoredKey -apiKey $apiKey -keyName "gemmacli"
     Draw-Box @("$CHK  API key saved securely (Windows user-only encryption)") -Color Green
 }
 
 # ====================== LOAD API KEY ======================
 $API_KEY = $env:GEMMA_API_KEY
-if (-not $API_KEY) { $API_KEY = Get-SavedApiKey }
+if (-not $API_KEY) { $API_KEY = Get-StoredKey -keyName "gemmacli" }
 if (-not $API_KEY) {
-    Write-Host "`n=== First-time setup ===" -ForegroundColor Cyan
+    Write-Host "`n=== First-time setup (Gemma API) ===" -ForegroundColor Cyan
     Write-Host "Get your free Gemma API key here:" -ForegroundColor Yellow
     Write-Host "https://aistudio.google.com/app/apikey`n" -ForegroundColor Gray
     do {
-        $secureInput = Read-Host "Enter your API key" -AsSecureString
+        $secureInput = Read-Host "Enter your Gemma API key" -AsSecureString
         $plainKey    = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput))
-        $confirm = Read-Host "Confirm API key (paste again)"
+        
+        $confirmInput = Read-Host "Confirm key (paste again)" -AsSecureString
+        $confirm      = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmInput))
+
         if ($plainKey -ne $confirm) { Write-Host "$CRS  Keys do not match. Try again." -ForegroundColor Red }
         elseif ([string]::IsNullOrWhiteSpace($plainKey)) { Write-Host "$CRS  API key cannot be empty." -ForegroundColor Red }
     } while ($plainKey -ne $confirm -or [string]::IsNullOrWhiteSpace($plainKey))
     Save-ApiKey $plainKey
     $API_KEY = $plainKey
 } else {
-    Write-Host "$CHK  API key loaded successfully" -ForegroundColor DarkGray
+    Write-Host "$CHK  Gemma API key loaded successfully" -ForegroundColor DarkGray
 }
 $script:API_KEY = $API_KEY
 # ====================== API ORCHESTRATION (lib/Api.ps1) ======================
@@ -157,19 +198,88 @@ $script:apiCallLog_Gemini  = [System.Collections.Generic.List[datetime]]::new() 
 
 # ====================== DUAL-AGENT (lib/Api.ps1) ======================
 
+function Initialize-ToolKeys {
+    foreach ($tool in @($script:TOOLS.Values)) {
+        if ($tool.RequiresKey) {
+            $existing = Get-StoredKey -keyName $tool.Name
+            if (-not $existing) {
+                Write-Host "`n=== Tool Setup: $($tool.Name) ===" -ForegroundColor Cyan
+                Write-Host "This tool requires an API key. Get it here:" -ForegroundColor Yellow
+                Write-Host "$($tool.KeyUrl)`n" -ForegroundColor Gray
+                Write-Host "(Press Escape to cancel and disable this tool)`n" -ForegroundColor DarkGray
+                
+                $cancelled = $false
+                $plainKey = ""
+                
+                do {
+                    $secureInput = Read-SecureStringWithCancel -Prompt "Enter API key for $($tool.Name)"
+                    if ($null -eq $secureInput) { $cancelled = $true; break }
+                    
+                    $plainKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput))
+                    
+                    $confirm = Read-HostWithCancel -Prompt "Confirm API key (paste again)"
+                    if ($null -eq $confirm) { $cancelled = $true; break }
+                    
+                    if ($plainKey -ne $confirm) { 
+                        Write-Host "$CRS  Keys do not match. Try again." -ForegroundColor Red 
+                        $plainKey = "" 
+                    }
+                    elseif ([string]::IsNullOrWhiteSpace($plainKey)) { 
+                        Write-Host "$CRS  API key cannot be empty." -ForegroundColor Red 
+                    }
+                } while ($plainKey -ne $confirm -or [string]::IsNullOrWhiteSpace($plainKey))
+                
+                if ($cancelled) {
+                    Write-Host "`nSetup cancelled. Disabling tool '$($tool.Name)'..." -ForegroundColor Yellow
+                    if (Test-Path "tools\$($tool.Name).ps1") {
+                        Move-Item -Path "tools\$($tool.Name).ps1" -Destination "more_tools/" -Force
+                        $script:TOOLS.Remove($tool.Name)
+                    }
+                } else {
+                    Save-StoredKey -apiKey $plainKey -keyName $tool.Name
+                    Draw-Box @("$CHK  API key for '$($tool.Name)' saved securely.") -Color Green
+                }
+            }
+        }
+    }
+}
+
 function Update-SystemPrompt {
+    param([bool]$resetHistory = $false)
+
     $toolBlock = Get-ToolInstructions -ScriptRoot $scriptDir -Model $script:MODEL -ToolLimits $script:TOOL_LIMITS
     $prompt = Get-SystemPrompt
     $prompt = $prompt -replace "%%AVAILABLE_TOOLS%%", $toolBlock
     
-    # Onboarding Injection: If tutorial tool is active, force initiation
+    # Initialize keys for any newly loaded/refreshed tools
+    Initialize-ToolKeys
+    
+    # Onboarding Injection
+    $onboarding = ""
     if ($script:TOOLS.ContainsKey("tutorial")) {
-        $prompt += "`n`nONBOARDING: The 'tutorial' tool is active. You MUST call it immediately to receive your mission instructions for this session."
+        $onboarding = "ONBOARDING: The 'tutorial' tool is active. You MUST call it immediately to receive your mission instructions for this session."
     }
+    $prompt = $prompt -replace "%%ONBOARDING_NOTICE%%", $onboarding
 
-    $prompt = "SYSTEM: Current date and time: $(Get-Date -Format 'dddd, MMMM dd yyyy HH:mm')`n`n" + $prompt
+    # Latent Awareness Injection
+    $latent = ""
+    if ($script:INACTIVE_COUNT -gt 0) {
+        $latent = "SYSTEM NOTICE: There are currently $($script:INACTIVE_COUNT) inactive tools in your repository. If you encounter a request that requires a capability you do not currently possess, suggest that the user check '/settings' or '/tools disabled' to enable more capabilities."
+    }
+    $prompt = $prompt -replace "%%LATENT_AWARENESS_NOTICE%%", $latent
+
+    $prompt = "[SYSTEM]: Current date and time: $(Get-Date -Format 'dddd, MMMM dd yyyy HH:mm')`n`n" + $prompt
     $script:systemPrompt = $prompt
-    $script:history = @( @{ role = "user"; parts = @(@{ text = $script:systemPrompt }) } )
+
+    if ($resetHistory -or $null -eq $script:history -or $script:history.Count -eq 0) {
+        $script:history = @( 
+            @{ role = "user"; parts = @(@{ text = $script:systemPrompt }) },
+            @{ role = "model"; parts = @(@{ text = "Acknowledged. Gemma CLI [SYSTEM] protocols active. Standing by for instructions." }) }
+        )
+    } else {
+        # Update index 0 (system instructions) without wiping conversation turns
+        $script:history[0].parts[0].text = $script:systemPrompt
+    }
 }
 
 # Initial build
@@ -178,6 +288,7 @@ Update-SystemPrompt
 # ====================== LOAD MEMORY ======================
 $appDataGemma = Join-Path $env:APPDATA "GemmaCLI"
 $memoryFile   = Join-Path $appDataGemma "memory.json"
+$script:historyFile = Join-Path $appDataGemma "last_session.json"
 
 # ====================== LOAD CUSTOM COMMANDS ======================
 $customCommandsPath = Join-Path $scriptDir "config/custom_commands.json"
@@ -214,19 +325,6 @@ $script:AlternativeColors = @{
     custom_command  = "Cyan"
 }
 
-# ====================== LOAD SETTINGS ======================
-$settingsPath = Join-Path $scriptDir "config/settings.json"
-$script:Settings = @{}
-if (Test-Path $settingsPath) {
-    try {
-        $rawSettings = Get-Content $settingsPath | ConvertFrom-Json
-        if ($rawSettings) {
-            foreach ($prop in $rawSettings.PSObject.Properties) {
-                $script:Settings[$prop.Name] = $prop.Value
-            }
-        }
-    } catch { }
-}
 $scheme = if ($script:Settings.color_scheme) { $script:Settings.color_scheme } else { "default" }
 
 if ($scheme -eq "alternative") {
@@ -265,7 +363,9 @@ $helpLines = @(
     "/speak [m/f]       $ARR Toggle Text-to-Speech (TTS) output",
     "/listen            $ARR Enable Speech-to-Text (STT) input",
     "/recall            $ARR Load memories from previous sessions",
+    "/resume            $ARR Resume last conversation session",
     "/multiline         $ARR Multiline mode - end with /end",
+    "/refresh           $ARR Hot-reload tools and system prompt",
     "/model [id]        $ARR Switch model / pass id directly",
     "/tools [all]       $ARR Show enabled/disabled/all tools",
     "/settings          $ARR Manage system settings",
@@ -278,7 +378,7 @@ $helpLines = @(
     "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.7.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.8.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -293,7 +393,7 @@ while ($true) {
     $reset = "$esc[0m"
 
     # Write the row start and header
-    Write-Host "$highlightColor$($esc)[K You " -NoNewline -ForegroundColor $script:Colors.user_label
+    Write-Host "$highlightColor$($esc)[K You" -NoNewline -ForegroundColor $script:Colors.user_label
     
     # 1. Print bar AFTER user prompt line always.
     $startX = [Console]::CursorLeft
@@ -360,25 +460,16 @@ while ($true) {
         
         if ($arg -eq "male" -or $arg -eq "m" -or $arg -eq "female" -or $arg -eq "f") {
             $script:ttsEnabled = $true
-            $voiceName = if ($arg -eq "male") { "Microsoft David Desktop" } else { "Microsoft Zira Desktop" }
+            $voiceName = if ($arg -eq "male" -or $arg -eq "m") { "Microsoft David Desktop" } else { "Microsoft Zira Desktop" }
             $label = if ($arg -eq "male" -or $arg -eq "m") { "David (Male)" } else { "Zira (Female)" }
 
-            if (-not $global:GemmaTTS) {
+            if (Initialize-TTS) {
                 try {
-                    Add-Type -AssemblyName System.Speech
-                    $global:GemmaTTS = New-Object System.Speech.Synthesis.SpeechSynthesizer
+                    $global:GemmaTTS.SelectVoice($voiceName)
+                    Draw-Box @("$CHK  Text-to-Speech ON (Voice: $label)") -Color Magenta
                 } catch {
-                    Write-Host "  [!] Could not initialize Windows TTS." -ForegroundColor Red
-                    $script:ttsEnabled = $false
-                    continue
+                    Write-Host "  [!] Voice '$voiceName' not found." -ForegroundColor Red
                 }
-            }
-            
-            try {
-                $global:GemmaTTS.SelectVoice($voiceName)
-                Draw-Box @("$CHK  Text-to-Speech ON (Voice: $label)") -Color Magenta
-            } catch {
-                Write-Host "  [!] Voice '$voiceName' not found." -ForegroundColor Red
             }
             continue
         }
@@ -388,18 +479,8 @@ while ($true) {
         $state = if ($script:ttsEnabled) { "ON" } else { "OFF" }
         Draw-Box @("$CHK  Text-to-Speech $state") -Color Magenta
         
-        # Initialize the synthesizer if turning on for the first time
-        if ($script:ttsEnabled -and -not $global:GemmaTTS) {
-            try {
-                Add-Type -AssemblyName System.Speech
-                $global:GemmaTTS = New-Object System.Speech.Synthesis.SpeechSynthesizer
-                # Attempt to use a female voice if available
-                $global:GemmaTTS.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female)
-            } catch {
-                Write-Host "  [!] Could not initialize Windows TTS. It may not be supported on this system." -ForegroundColor Red
-                $script:ttsEnabled = $false
-            }
-        }
+        # Initialize if turning on
+        if ($script:ttsEnabled) { Initialize-TTS | Out-Null }
         continue
     }
 
@@ -413,6 +494,12 @@ while ($true) {
     if ($userInput -eq "/trim") {
         $script:history = Invoke-SmartTrim -hist $script:history -tokenBudget $script:TRIM_THRESHOLD
         Draw-Box @("$CHK  Manual context trim completed.") -Color Magenta
+        continue
+    }
+
+    if ($userInput -eq "/refresh") {
+        Update-SystemPrompt
+        Draw-Box @("$CHK  Tools and system prompt reloaded.", "     Current enabled tools: $($script:TOOLS.Count)") -Color Green
         continue
     }
 
@@ -436,8 +523,17 @@ while ($true) {
             $sttResult = $recognizer.Recognize([TimeSpan]::FromSeconds(60))
             
             if ($sttResult) {
-                $userInput = $sttResult.Text
-                Write-Host $userInput -ForegroundColor Green
+                $rawText = $sttResult.Text
+                $confidence = [Math]::Round($sttResult.Confidence, 2)
+                
+                if ($script:debugMode) {
+                    Write-Host " [STT Confidence: $confidence] " -NoNewline -ForegroundColor Yellow
+                }
+                
+                Write-Host $rawText -ForegroundColor Green
+                
+                # Tag the input so Gemma knows to be lenient with transcription errors
+                $userInput = "[VOICE STT (Confidence: $confidence)]: $rawText"
             } else {
                 Write-Host "No speech detected." -ForegroundColor Red
                 continue
@@ -499,6 +595,41 @@ while ($true) {
         continue
     }
 
+    if ($userInput -eq "/resume") {
+        if (-not (Test-Path $script:historyFile)) {
+            Draw-Box @("$CRS  No previous session history found.") -Color Yellow
+            continue
+        }
+
+        try {
+            $raw = Get-Content $script:historyFile -Raw -Encoding UTF8
+            $savedHistory = $raw | ConvertFrom-Json
+            
+            # Reconstruct history into proper format (hashtables)
+            $script:history = @()
+            foreach ($turn in $savedHistory) {
+                $turnHash = @{ role = $turn.role; parts = @() }
+                foreach ($part in $turn.parts) {
+                    $partHash = @{}
+                    if ($part.text) { $partHash["text"] = $part.text }
+                    if ($part.inline_data) { 
+                        $partHash["inline_data"] = @{ 
+                            mime_type = $part.inline_data.mime_type
+                            data = $part.inline_data.data 
+                        }
+                    }
+                    $turnHash.parts += $partHash
+                }
+                $script:history += $turnHash
+            }
+
+            Draw-Box @("$CHK  Resumed last session history ($($script:history.Count) turns).") -Color Green
+        } catch {
+            Draw-Box @("$CRS  Failed to resume session: $($_.Exception.Message)") -Color Red
+        }
+        continue
+    }
+
 
     if ($userInput -match '^/tools\s*(.*)$') {
         $sub = $matches[1].Trim().ToLower()
@@ -518,8 +649,11 @@ while ($true) {
     }
 
     if ($userInput -eq "/resetkey") {
-        if (Test-Path $script:configFile) { Remove-Item $script:configFile -Force }
-        Draw-Box @("$CHK  Saved API key deleted. Restart the script to set a new one.") -Color Cyan       
+        if (Remove-StoredKey -keyName "gemmacli") {
+            Draw-Box @("$CHK  Saved API key deleted. Restart the script to set a new one.") -Color Cyan
+        } else {
+            Draw-Box @("$CRS  No saved API key found to delete.") -Color Yellow
+        }
         break
     }
 
@@ -549,8 +683,18 @@ while ($true) {
                     $startIdx = $pageIdx * $pageSize
                     $endIdx = [math]::Min($startIdx + $pageSize - 1, $allTools.Count - 1)
                     $currentPageTools = $allTools[$startIdx..$endIdx]
-                    
-                    $toolOptions = $currentPageTools | ForEach-Object { "$($_.Name) ($($_.Status))" }
+
+                    $toolOptions = $currentPageTools | ForEach-Object { 
+                        $meta = $script:TOOL_CACHE[$_.Name]
+
+                        $inds = @()
+                        if ($meta.Interactive) { $indicators += "⚠ " }
+                        if ($meta.RequiresKey) { $indicators += "🔑" }
+                        $indStr = if ($inds.Count -gt 0) { " " + ($inds -join " ") } else { "" }
+
+                        "$($meta.Icon) $($_.Name)$indStr ($($_.Status))" 
+                    }
+
                     
                     $hasPrev = $pageIdx -gt 0
                     $hasNext = ($startIdx + $pageSize) -lt $allTools.Count
@@ -581,11 +725,18 @@ while ($true) {
                         if ($selectedTool.Status -eq "Enabled") {
                             Move-Item -Path "tools\$($selectedTool.Name).ps1" -Destination "more_tools/"
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
-                            Draw-Box @("Tool '$($selectedTool.Name)' disabled. Restart GemmaCLI to refresh tools.") -Color Yellow
+                            Update-SystemPrompt
+                            Draw-Box @("Tool '$($selectedTool.Name)' disabled.") -Color Yellow
                         } else {
                             Move-Item -Path "more_tools\$($selectedTool.Name).ps1" -Destination "tools/"
                             $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
-                            Draw-Box @("Tool '$($selectedTool.Name)' enabled. Restart GemmaCLI to refresh tools.") -Color Yellow
+                            Update-SystemPrompt
+                            # Check if tool is still active (it might have been disabled during key setup)
+                            if ($script:TOOLS.ContainsKey($selectedTool.Name)) {
+                                Draw-Box @("Tool '$($selectedTool.Name)' enabled.") -Color Yellow
+                            } else {
+                                Draw-Box @("Tool '$($selectedTool.Name)' disabled (Setup cancelled).") -Color Yellow
+                            }
                         }
                     }
                     break # Exit the loop after toggling
@@ -691,7 +842,7 @@ while ($true) {
         $modelArg = $matches[1].Trim()
 
         # Strictly allowed handles for the Chat Model Picker
-        $gemmaHandles = @("gemma-ultra", "gemma-heavy", "gemma-medium", "gemma-small", "gemma-nano-pro", "gemma-nano-lite")
+        $gemmaHandles = @("gemma-4-pro", "gemma-4-fast", "gemma-ultra", "gemma-heavy", "gemma-medium", "gemma-small", "gemma-nano-pro", "gemma-nano-lite")
         $availableGemma = @()
         foreach ($handle in $gemmaHandles) {
             $p = $script:MODEL_REGISTRY.PSObject.Properties[$handle]
@@ -720,8 +871,23 @@ while ($true) {
                 $script:MODEL = $selected.Value.id
                 $script:Settings.current_model_handle = $script:MODEL_HANDLE
                 $script:Settings | ConvertTo-Json | Set-Content $settingsPath
-                Update-SystemPrompt
-                Draw-Box @("$CHK  Model switched to: $script:MODEL") -Color Magenta
+                
+                # Check tool limits and disable excess tools
+                $limit = if ($script:TOOL_LIMITS[$script:MODEL] -ne $null) { $script:TOOL_LIMITS[$script:MODEL] } else { 0 }
+                $enabledTools = Get-ChildItem -Path "tools" -Filter "*.ps1" | Sort-Object Name
+                if ($enabledTools.Count -gt $limit) {
+                    $toDisable = $enabledTools.Count - $limit
+                    $disabledNames = @()
+                    for ($i = 0; $i -lt $toDisable; $i++) {
+                        $tool = $enabledTools[$enabledTools.Count - 1 - $i]
+                        Move-Item -Path $tool.FullName -Destination "more_tools/" -Force
+                        $disabledNames += $tool.BaseName
+                    }
+                    Draw-Box @("$WRN  Tool limit for '$($script:MODEL)' is $limit.", "     Disabled excess tools: $($disabledNames -join ', ')") -Color Yellow
+                }
+
+                Update-SystemPrompt -resetHistory $true
+                Draw-Box @("$CHK  Model switched to: $script:MODEL", "$WRN  Conversation context has been cleared.") -Color Magenta
             } else {
                 Write-Host "  Model selection cancelled." -ForegroundColor DarkGray
             }
@@ -771,17 +937,20 @@ while ($true) {
         Draw-Box @("Executing custom command: $userInput") -Color $script:Colors.custom_command
     }
 
-    if ([string]::IsNullOrWhiteSpace($userInput)) { continue }
+    if ([string]::IsNullOrWhiteSpace($userInput)) { 
+        # Move up one line and clear it to remove the dangling "You:" prompt
+        Write-Host "$esc[1A$esc[K" -NoNewline
+        continue 
+    }
 
     $script:history += @{ role = "user"; parts = @(@{ text = $userInput }) }
 
     $currentUri = Get-ApiUri 
     $toolTurns    = 0
-    $maxToolTurns = if ($script:MODEL -in @("gemma-3-27b-it","gemma-3-12b-it")) { 4 } else { 2 }
+    $defaultMax   = if ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) { 8 } else { 4 }
+    $maxToolTurns = if ($script:Settings.max_tool_turns) { [int]$script:Settings.max_tool_turns } else { $defaultMax }
 
-    while ($toolTurns -lt $maxToolTurns) {
-        $toolTurns++
-
+    while ($true) {
         # RPM check — enforces free-tier request-per-minute ceiling before every call
         Invoke-RpmCheck -backend "gemma"
 
@@ -831,27 +1000,53 @@ while ($true) {
         $script:lastStatus = @{ prompt = $usage.promptTokenCount; candidate = $usage.candidatesTokenCount; total = $usage.totalTokenCount; finish = $fin }
         Write-ApiLog -toolName "chat"  # updated to tool name below if a tool call is parsed
 
-        $modelText = $resp.candidates[0].content.parts[0].text.Trim()
+        $modelText = ""
+        foreach ($p in $resp.candidates[0].content.parts) {
+            if ($p.thought -eq $true) {
+                $modelText += "<thought>`n" + $p.text.Trim() + "`n</thought>`n"
+            } elseif ($p.text) {
+                $modelText += $p.text + "`n"
+            }
+        }
+        $modelText = $modelText.Trim()
 
+        if ([string]::IsNullOrWhiteSpace($modelText) -and -not $resp.candidates[0].content.parts.tool_calls) {
+             # Only show error if no tool call was parsed elsewhere
+             Write-Host ""
+             Draw-Box @("$CRS  Empty response received. This may be a safety block or API glitch.") -Color Red
+             break
+        }
         function Render-ModelText {
             param([string]$text)
             Write-Host ""
             Write-Host " Gemma: " -NoNewline -ForegroundColor $script:Colors.gemma_response
-            Write-Host ""
-            $segments = [System.Text.RegularExpressions.Regex]::Split($text, '(?s)(<code_block>.*?</code_block>)')
+            
+            # Support both <thought> tags and native <|channel>thought tags
+            $segments = [System.Text.RegularExpressions.Regex]::Split($text, '(?s)(<thought>.*?</thought>|<\|channel>thought.*?<channel\|>)')
             foreach ($seg in $segments) {
-                if ($seg -match '(?s)<code_block>(.*?)</code_block>') {
-                    $code = $matches[1].Trim()
-                    Write-Host ""
-                    foreach ($codeLine in $code -split "`n") {
-                        Write-Host "  $codeLine" -ForegroundColor White -BackgroundColor DarkGray
-                    }
+                if ($seg -match '(?s)<thought>(.*?)</thought>' -or $seg -match '(?s)<\|channel>thought(.*?)<channel\|>') {
+                    $thought = $matches[1].Trim()
+                    Write-Host "`n  [THINKING]: " -NoNewline -ForegroundColor Gray
+                    Write-Host $thought -ForegroundColor DarkGray
                     Write-Host ""
                 } else {
-                     if ($seg.Trim()) { 
-                        $hyperlinked = Convert-ToHyperlink -Text $seg
-                        Write-Host $hyperlinked 
-                     }
+                    # Split remaining text by code blocks
+                    $subSegments = [System.Text.RegularExpressions.Regex]::Split($seg, '(?s)(<code_block>.*?</code_block>)')
+                    foreach ($sub in $subSegments) {
+                        if ($sub -match '(?s)<code_block>(.*?)</code_block>') {
+                            $code = $matches[1].Trim()
+                            Write-Host ""
+                            foreach ($codeLine in $code -split "`n") {
+                                Write-Host "  $codeLine" -ForegroundColor White -BackgroundColor DarkGray
+                            }
+                            Write-Host ""
+                        } else {
+                             if ($sub.Trim()) { 
+                                $hyperlinked = Convert-ToHyperlink -Text $sub
+                                Write-Host $hyperlinked 
+                             }
+                        }
+                    }
                 }
             }
             Write-Host ""
@@ -860,6 +1055,8 @@ while ($true) {
         $jsonStr = $null
         $preText = $null
         $strippedText = $modelText -replace '(?s)<code_block>.*?</code_block>', '[code block]'
+        $strippedText = $strippedText -replace '(?s)<thought>.*?</thought>', '[thought]'
+        $strippedText = $strippedText -replace '(?s)<\|channel>thought.*?<channel\|>', '[thought]'
 
         # Format 1: Official XML style <tool_call>{...}</tool_call>
         if ($strippedText -match '(?s)(.*?)<tool_call>\s*(\{.*?\})\s*</tool_call>') {
@@ -881,9 +1078,30 @@ while ($true) {
         elseif ($strippedText -match '(?s)(.*?)(\w+)\(\s*(\{.*?\})\s*\)') {
             $preText = $matches[1].Trim(); $jsonStr = "{`"name`": `"$($matches[2])`", `"parameters`": $($matches[3])}"
         }
+        # Format 6: Expanded XML tags <tool_call><name>...</name><parameters>...</parameters></tool_call>
+        elseif ($strippedText -match '(?s)(.*?)<tool_call>\s*<name>(.*?)</name>\s*<parameters>(.*?)</parameters>\s*</tool_call>') {
+            $preText = $matches[1].Trim()
+            $tName = $matches[2].Trim()
+            $tParams = $matches[3].Trim()
+            # Convert simple XML parameters to JSON if possible, or wrap as string
+            $jsonStr = "{`"name`": `"$tName`", `"parameters`": $tParams}"
+        }
 
         if ($jsonStr) {
-            if ($preText) { Render-ModelText -text $preText }
+            if ($preText) { 
+                Render-ModelText -text $preText 
+                
+                # Speak the pre-text if TTS is enabled
+                if ($script:ttsEnabled -and $global:GemmaTTS) {
+                    try {
+                        $global:GemmaTTS.SpeakAsyncCancelAll()
+                        $speakPreText = Format-TextForSpeech -text $preText
+                        if ($speakPreText) {
+                            $global:GemmaTTS.SpeakAsync($speakPreText) | Out-Null
+                        }
+                    } catch {}
+                }
+            }
          # Bulletproof sanitization: handles escaped quotes AND escaped backslashes
          $jsonStr = $jsonStr -replace "\r\n", ' '
          $jsonStr = $jsonStr -replace "\r",   ' '
@@ -900,19 +1118,19 @@ while ($true) {
                 if (-not $tool) {
                     throw "Unknown tool '$($call.name)' requested."
                 }
-                $label = & $tool.FormatLabel $params
-
-
-                Write-Host ""
-                Write-Host " Tool request: " -NoNewline -ForegroundColor DarkGray
-                Write-Host $label -ForegroundColor White
-                Write-Host ""
+                
+                $label = Get-StandardToolLabel -Tool $tool -Params $params
+                $isInteractive = $tool.Interactive -eq $true
+                $securityIcon = if ($isInteractive) { "$WRN " } else { "" }
 
                 $choice = Show-ArrowMenu `
                     -Options @("Allow once", "Deny") `
-                    -Title "Action Required  $BUL  $label" `
-                    -Width 100 `
+                    -Title "${securityIcon}Tool Request $ARR Action Required $BUL $label" `
+                    -Width 110 `
                     -Default 0
+
+                # Silence speech once a choice is made
+                if ($global:GemmaTTS) { $global:GemmaTTS.SpeakAsyncCancelAll() }
 
                 if ($choice -ne 0) {
                     Write-Host ""
@@ -923,88 +1141,106 @@ while ($true) {
                 }
 
                 Write-Host ""
-                Draw-Box @("$CHK  $label") -Color Magenta
+                if ($isInteractive) {
+                    Draw-Box @("$WRN  $label (Interactive Mode - Main Thread)") -Color Yellow
+                } else {
+                    Draw-Box @("$CHK  $label") -Color Magenta
+                }
 
-                # Execute tool directly in the main session as in 019
-                # but with a simple Esc check loop if possible
-                
-                # Standardize delay after confirmation to ensure API stability and UI readability
+                # Execute tool
                 Stop-Spinner
                 Start-Sleep -Milliseconds 160
 
-                $isRenderingTool = $tool.RendersToConsole -eq $true
-                if (-not $isRenderingTool) {
-                    Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
-                }
-
-                $script:toolJob = Start-Job -ScriptBlock {
-                    param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history, $modelRegistry)
-                    Set-Location -Path $workDir
-                    
-                    # Initialize core script state inside the job
-                    $script:API_KEY = $apiKey
-                    $script:BASE_URI_BASE = $baseUri
-                    $script:MODEL = $model
-                    $script:TOOL_LIMITS = $toolLimits
-                    $script:MODEL_REGISTRY = $modelRegistry
-                    $script:configDir = $configDir
-                    $script:apiCallLog_Gemma = [System.Collections.Generic.List[datetime]]::new()
-                    $script:apiCallLog_Gemini = [System.Collections.Generic.List[datetime]]::new()
-                    $script:lastApiCall = (Get-Date).AddSeconds(-10)
-                    $script:lastApiCall_Gemini = (Get-Date).AddSeconds(-10)
-                    $script:history = $history
-
-                    # Dot-source core libraries inside the job
-                    . (Join-Path $scriptDir "lib/Api.ps1")
-                    . (Join-Path $scriptDir "lib/History.ps1")
-                    . (Join-Path $scriptDir "lib/UI.ps1")
-
-                    $toolFile = Join-Path $toolsDir "$toolName.ps1"
-                    if (-not (Test-Path $toolFile)) {
-                        return "ERROR: Tool file '$toolFile' not found."
-                    }
-                    
-                    try {
-                        # Force reading the tool script as UTF-8 to handle Unicode characters correctly
-                        $toolContent = Get-Content -Path $toolFile -Raw -Encoding UTF8
-                        Invoke-Expression -Command $toolContent
-
-                        if (-not $ToolMeta.Execute) {
-                            return "ERROR: Tool '$toolName' is missing its 'Execute' scriptblock."
-                        }
-                        # Invoke the tool's execution block with the parameters
-                        return & $ToolMeta.Execute $params
-                    } catch {
-                        return "ERROR: Exception while executing tool '$toolName': $($_.Exception.Message) | StackTrace: $($_.ScriptStackTrace)"
-                    } finally {
-                        $ToolMeta = $null
-                    }
-                } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir, $script:history, $script:MODEL_REGISTRY
-
-
+                $result = $null
                 $cancelled = $false
-                while ($script:toolJob.State -eq "Running") {
-                    if ([Console]::KeyAvailable) {
-                        $key = [Console]::ReadKey($true)
-                        if ($key.Key -eq "Escape") {
-                            $cancelled = $true
-                            Stop-Job $script:toolJob
-                            break
+
+                if ($isInteractive) {
+                    # Execute in the main process to maintain valid console handle for interactive input
+                    try {
+                        $toolFile = Join-Path $scriptDir "tools/$($call.name).ps1"
+                        if (Test-Path $toolFile) {
+                            $content = Get-Content -Path $toolFile -Raw -Encoding UTF8
+                            Invoke-Expression $content
                         }
+                        $result = & $tool.Execute $params
+                    } catch {
+                        $result = "ERROR: Exception while executing interactive tool '$($call.name)': $($_.Exception.Message)"
                     }
-                    Start-Sleep -Milliseconds 100
+                } else {
+                    Start-Spinner -Label "Executing $($call.name) (Esc to cancel)"
+                    $script:toolJob = Start-Job -ScriptBlock {
+                        param($toolName, $params, $toolsDir, $workDir, $scriptDir, $apiKey, $baseUri, $model, $toolLimits, $configDir, $history, $modelRegistry)
+                        
+                        # Ensure UTF8 output in background job to prevent Mojibake
+                        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                        $OutputEncoding = [System.Text.Encoding]::UTF8
+
+                        Set-Location -Path $workDir
+                        
+                        # Initialize core script state inside the job
+                        $script:API_KEY = $apiKey
+                        $script:BASE_URI_BASE = $baseUri
+                        $script:MODEL = $model
+                        $script:TOOL_LIMITS = $toolLimits
+                        $script:MODEL_REGISTRY = $modelRegistry
+                        $script:configDir = $configDir
+                        $script:apiCallLog_Gemma = [System.Collections.Generic.List[datetime]]::new()
+                        $script:apiCallLog_Gemini = [System.Collections.Generic.List[datetime]]::new()
+                        $script:lastApiCall = (Get-Date).AddSeconds(-10)
+                        $script:lastApiCall_Gemini = (Get-Date).AddSeconds(-10)
+                        $script:history = $history
+
+                        # Dot-source core libraries inside the job
+                        . (Join-Path $scriptDir "lib/Api.ps1")
+                        . (Join-Path $scriptDir "lib/History.ps1")
+                        . (Join-Path $scriptDir "lib/UI.ps1")
+
+                        $toolFile = Join-Path $toolsDir "$toolName.ps1"
+                        if (-not (Test-Path $toolFile)) {
+                            return "ERROR: Tool file '$toolFile' not found."
+                        }
+                        
+                        try {
+                            # Force reading the tool script as UTF8 to handle Unicode characters correctly
+                            $toolContent = Get-Content -Path $toolFile -Raw -Encoding UTF8
+                            Invoke-Expression -Command $toolContent
+
+                            if (-not $ToolMeta.Execute) {
+                                return "ERROR: Tool '$toolName' is missing its 'Execute' scriptblock."
+                            }
+                            # Invoke the tool's execution block with the parameters
+                            return & $ToolMeta.Execute $params
+                        } catch {
+                            return "ERROR: Exception while executing tool '$toolName': $($_.Exception.Message) | StackTrace: $($_.ScriptStackTrace)"
+                        } finally {
+                            $ToolMeta = $null
+                        }
+                    } -ArgumentList $call.name, $params, (Join-Path $scriptDir "tools"), (Get-Location), $scriptDir, $script:API_KEY, $script:BASE_URI_BASE, $script:MODEL, $script:TOOL_LIMITS, $script:configDir, $script:history, $script:MODEL_REGISTRY
+
+                    while ($script:toolJob.State -eq "Running") {
+                        if ([Console]::KeyAvailable) {
+                            $key = [Console]::ReadKey($true)
+                            if ($key.Key -eq "Escape") {
+                                $cancelled = $true
+                                Stop-Job $script:toolJob
+                                break
+                            }
+                        }
+                        Start-Sleep -Milliseconds 100
+                    }
+
+                    if (-not $cancelled) {
+                        $result = Receive-Job $script:toolJob
+                    }
+                    Remove-Job $script:toolJob -Force
+                    Stop-Spinner
                 }
 
                 if ($cancelled) {
-                    Stop-Spinner
-                    Remove-Job $script:toolJob -Force
                     Write-Host " [Tool execution cancelled by user]" -ForegroundColor Yellow
                     break
                 }
 
-                $result = Receive-Job $script:toolJob
-                Remove-Job $script:toolJob -Force
-                Stop-Spinner
                 if ($script:debugMode) { Write-Host "`n[DEBUG] Tool Execution Result: $result" -ForegroundColor Yellow }
 
                 # Ensure result is a single clean string (job may return string[])
@@ -1025,9 +1261,7 @@ while ($true) {
                 $truncNote = if ($truncated) { "`n[Note: file was truncated to $maxChars characters due to size limits]" } else { "" }
 
                 # Handle console-only messages (printed to user, stripped before Gemma sees result)
-                $hasConsolePart = $false
                 if ($result -match "(?s)^CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
-                    $hasConsolePart = $true
                     $consoleRaw = $matches[1]
                     $result = $matches[2].Trim()
 
@@ -1060,11 +1294,14 @@ while ($true) {
                         if (-not ($fullPath.EndsWith(".wav"))) { $fullPath += ".wav" }
                         
                         if (Test-Path $fullPath) {
+                            $speaker = $null
                             try {
                                 $speaker = New-Object System.Media.SoundPlayer
                                 $speaker.SoundLocation = $fullPath
-                                $speaker.Play() # PlayAsync to not block main thread
-                            } catch {}
+                                $speaker.Play() 
+                            } catch {} finally {
+                                if ($speaker) { $speaker.Dispose() }
+                            }
                         }
                         $consoleRaw = $consoleRaw -replace "::?PLAY_SOUND:[\w\s.-]+", ""
                     }
@@ -1083,13 +1320,13 @@ while ($true) {
                     $script:history += @{
                         role  = "user"
                         parts = @(
-                            @{ text = "TOOL RESULT: Image loaded. $prompt" },
+                            @{ text = "[SYSTEM] TOOL RESULT: Image loaded. $prompt" },
                             @{ inline_data = @{ mime_type = $mime; data = $b64 } }
                         )
                     }
                 } else {
                     $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
-                    $script:history += @{ role = "user"; parts = @(@{ text = "TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on context. Do not call this tool again immediately." }) }
+                    $script:history += @{ role = "user"; parts = @(@{ text = "[SYSTEM] TOOL RESULT:`n$result$truncNote`n`nNow respond to the user based on context. Do not call this tool again immediately." }) }
                 }
 
                 Write-ApiLog -toolName $call.name
@@ -1110,17 +1347,19 @@ while ($true) {
             if ($script:ttsEnabled -and $global:GemmaTTS) {
                 try {
                     $global:GemmaTTS.SpeakAsyncCancelAll()
-                    # Strip markdown bold/italics and code blocks for cleaner speech
-                    $speakText = $modelText -replace '(?s)<code_block>.*?</code_block>', ' [Code block omitted] '
-                    $speakText = $speakText -replace '(?s)```.*?```', ' [Code block omitted] '
-                    $speakText = $speakText -replace '\*\*', ''
-                    $speakText = $speakText -replace '\*', ''
-                    $global:GemmaTTS.SpeakAsync($speakText) | Out-Null
+                    $speakText = Format-TextForSpeech -text $modelText
+                    if ($speakText) {
+                        $global:GemmaTTS.SpeakAsync($speakText) | Out-Null
+                    }
                 } catch { }
             }
             break
         }
     }
+    # Save session history for 'skillify' and '/resume' after each turn
+    try {
+        $script:history | ConvertTo-Json -Depth 20 | Set-Content -Path $script:historyFile -Encoding UTF8 -Force
+    } catch { }
 }
 
 Write-Host ""
