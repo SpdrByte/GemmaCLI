@@ -1,4 +1,4 @@
-# Adding a Tool to Gemma CLI v.0.2.0
+# Adding a Tool to Gemma CLI v0.2.2
 ### A Step-by-Step Tutorial — Building `writefile.ps1` from Scratch
 
 This guide walks through every step required to add a new tool to Gemma CLI v0.5.0+.
@@ -33,7 +33,21 @@ You only need to touch **one file** to add a tool:
 
 ## Step 1 — Create the Tool File
 
-Create `tools/writefile.ps1`. Every tool file consists of a worker function and a `$ToolMeta` registration block.
+Create `tools/writefile.ps1`. 
+
+
+## Step 2 - Create the header
+ex.
+
+# ===============================================
+# GemmaCLI Tool - writefile.ps1 v1.0.0
+# Responsibility: Writes content to a file. Includes overwrite protection.
+# ===============================================
+
+
+## Step 3
+
+Every tool file consists of a worker function and a `$ToolMeta` registration block.
 
 ```powershell
 # tools/writefile.ps1
@@ -165,17 +179,31 @@ return "CONSOLE::$asciiArt::END_CONSOLE::$resultForGemma"
 
 ---
 
-#### Decision Rule
+### 9. Interactive Tools (Main Thread Access)
+By default, all tools run in a **background job** for safety and to allow the user to cancel them with `Esc`. However, background jobs cannot access the "Interactive Console Handle" — they cannot read key presses or show interactive menus.
 
-| I need... | Use |  RendersToConsole |
-|---|---|---|
-| Multiple colors / colored boxes | `Draw-Box` + `Write-Host` | `$true` |
-| Simple monochrome ASCII art | `CONSOLE::` protocol | `$false` |
-| No visual output at all | Plain `return "OK: ..."` | `$false` |
+If your tool needs to ask the user a question (via `Read-Host` or `Show-ArrowMenu`), you must set:
+`Interactive = $true`
 
+**Impact:**
+- **Main Thread Execution:** The tool runs in the main CLI process rather than a job.
+- **Security Warning:** A ⚠ warning icon appears in the permission menu, and a "Main Thread" disclaimer is shown to the user.
+- **No Spinner:** The "Gemma is thinking" spinner is automatically hidden.
 
+---
 
-### 2. Multi-Tier Guidance
+#### Decision Rule (Visuals & Interaction)
+
+| I need... | Use | RendersToConsole | Interactive |
+|---|---|---|---|
+| Multiple colors / colored boxes | `Draw-Box` + `Write-Host` | `$true` | `$false` |
+| **User Input (Menus, Read-Host)** | **Interactive Logic** | **$true** | **$true** |
+| Simple monochrome ASCII art | `CONSOLE::` protocol | `$false` | `$false` |
+| No visual output at all | Plain `return "OK: ..."` | `$false` | `$false` |
+
+---
+
+## Step 4 — Zero-Config Integration
 You can provide different instructions based on model size (e.g., simplified for 4B, detailed for 27B) by adding these properties to `$ToolMeta`:
 
 - `ToolUseGuidanceMajor`: Detailed guidance for high-capacity models (27B, 12B).
@@ -210,9 +238,49 @@ $ToolMeta = @{
 }
 ```
 
+### 6. Billing Awareness (Paid Tier)
+If your tool uses a feature of the Gemini API that requires a billing-enabled project (like Grounding with Google Search or Maps), set `RequiresBilling = $true`. 
+
+**Impact:**
+- A ⚠️ warning icon and "Paid Tier" label appear in the `/tools` list.
+- A financial disclaimer is injected into Gemma's instructions for this tool.
+- This helps users understand why they might see quota errors if they are on the free tier.
+
+### 7. Seamless Key Management
+If your tool requires its own external API key (e.g., Brave Search, OpenWeather), use `RequiresKey = $true` and provide a `KeyUrl`.
+
+**Impact:**
+- **Auto-Setup**: When the user enables the tool in `/settings`, the CLI immediately detects the missing key and prompts the user to enter it.
+- **Guidance**: The `KeyUrl` is displayed to the user so they can Ctrl+Click to get their key instantly.
+- **Secure Storage**: Keys are encrypted using Windows DPAPI and stored separately from the main Gemma key.
+- **Implementation**: Inside your tool's worker function, retrieve the key using:
+  `$apiKey = Get-StoredKey -keyName "your_tool_name"`
+
+### 8. Tool Synergies (Relationships)
+The Synergy System allows tools to "see" each other. When two related tools are both active, the CLI automatically injects expanded behavioral instructions into the system prompt. This allows for complex workflows (like "Validate -> Render Diagram") without hardcoding one tool's name into another's base documentation.
+
+**How to implement:**
+Add a `Relationships` hashtable to your `$ToolMeta`. 
+- **Key:** The name of the related tool.
+- **Value:** The specific instruction for how Gemma should use the two together.
+
+```powershell
+$ToolMeta = @{
+    Name = "my_rendering_tool"
+    Relationships = @{
+        "data_source_tool" = "When both are active, always use 'data_source_tool' to fetch the raw metrics before using 'my_rendering_tool' to draw the chart."
+    }
+    # ...
+}
+```
+
+**Benefits:**
+- **Zero Hallucination:** Instructions only appear if BOTH tools are enabled. If the user disables one, the synergy disappears, so Gemma won't try to call a tool she doesn't have.
+- **Decoupled Logic:** Your tool's main `Behavior` stays focused on its core task, while the "glue" logic lives in the synergy layer.
+
 ---
 
-## Step 2 — Zero-Config Integration
+## Step 4 — Zero-Config Integration
 
 The CLI uses a dynamic instruction system. Ensure your `instructions.json` contains the `%%AVAILABLE_TOOLS%%` placeholder:
 
@@ -227,7 +295,7 @@ When the script starts, `ToolLoader.ps1` reads your `.ps1` files in `tools/`, ex
 
 ---
 
-## Step 3 — Verify and Test
+## Step 5 — Verify and Test
 
 1. **Startup:** Run the CLI. You should see:
    `[OK] Loaded tool: writefile`
@@ -242,7 +310,7 @@ When the script starts, `ToolLoader.ps1` reads your `.ps1` files in `tools/`, ex
 ## Checklist
 
 ```
-□ tools/writefile.ps1 created with UTF-8 encoding
+□ tools/writefile.ps1 created with UTF-8 with BOM encoding (Required for emojis)
 □ $ToolMeta contains Name, RendersToConsole, Behavior, Description, etc.
 □ Execute block uses @params splatting for cleanliness
 □ Function returns "OK: ..." or "ERROR: ..." strings (or uses CONSOLE:: protocol)
@@ -271,7 +339,9 @@ function Invoke-MyTool {
 $ToolMeta = @{
     Name             = "mytool"
     RendersToConsole = $false
+    Interactive      = $false
     Behavior         = "Use this tool when the user needs X."
+    Relationships    = @{ "other_tool" = "When both are active, do Y after doing X." }
     Tutorial         = "I can do X. Try saying: 'Use mytool on target' to see me in action!"
     Description      = "Does X to the target."
     Parameters       = @{ target = "string - the thing to act upon" }

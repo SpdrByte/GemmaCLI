@@ -1,4 +1,4 @@
-# tools/tutorial.ps1 v0.5.1
+﻿# tools/tutorial.ps1 v0.6.0
 # Responsibility: High-fidelity "Terminal Instructor" for GemmaCLI.
 #                 Conversational onboarding with verification gates.
 
@@ -315,6 +315,7 @@ ONCE THE USER RESPONDS (Modules 1 & 2): Call 'tutorial' with action='next_level'
 
 $ToolMeta = @{
     Name             = "tutorial"
+    Icon             = "🎓"
     RendersToConsole = $false
     Category         = @("System", "Help")
 
@@ -330,7 +331,8 @@ $ToolMeta = @{
         tool_name = "string - required for action='complete'. The tool name that was just mastered."
     }
     Example          = "<tool_call>{ ""name"": ""tutorial"", ""parameters"": { ""action"": ""start"" } }</tool_call>"
-    FormatLabel      = { param($p) "🎓 tutorial -> $($p.action)" }
+    FormatLabel = { param($p) "$($p.action)" }
+
     Execute          = { 
         param($params) 
         $params['current_tools_dir'] = $toolsDir
