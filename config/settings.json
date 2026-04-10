@@ -7,6 +7,16 @@
                                                "label":  "Gemma Ultra (27B)",
                                                "desc":  "Maximum reasoning \u0026 logic"
                                            },
+                           "gemma-4-pro":  {
+                                               "id":  "gemma-4-31b-it",
+                                               "label":  "Gemma 4 Pro (31B)",
+                                               "desc":  "Flagship Dense Reasoning"
+                                           },
+                           "gemma-4-fast":  {
+                                                "id":  "gemma-4-26b-a4b-it",
+                                                "label":  "Gemma 4 Fast (26B)",
+                                                "desc":  "High-Speed MoE (Active 4B)"
+                                            },
                            "gemma-heavy":  {
                                                "id":  "gemma-3-12b-it",
                                                "label":  "Gemma Heavy (12B)",
@@ -62,11 +72,11 @@
                                                     "label":  "Gemini Vision HD",
                                                     "desc":  "Professional high-res vision"
                                                 },
-                           "gemini-live":  {
-                                               "id":  "gemini-3.1-flash-live-preview",
-                                               "label":  "Gemini Live",
-                                               "desc":  "Real-time streaming/interaction"
-                                           },
+                           "gemini-live-preview":  {
+                                                       "id":  "gemini-3.1-flash-live-preview",
+                                                       "label":  "Gemini Live",
+                                                       "desc":  "Real-time streaming/interaction"
+                                                   },
                            "gemini-stable-fast":  {
                                                       "id":  "gemini-2.5-flash",
                                                       "label":  "Gemini Stable Fast",
@@ -77,11 +87,11 @@
                                                      "label":  "Gemini Stable Pro",
                                                      "desc":  "Reliable 2.5 pro model"
                                                  },
-                           "audio-native":  {
-                                                "id":  "gemini-2.5-flash-native-audio-preview-12-2025",
-                                                "label":  "Audio Native Pro",
-                                                "desc":  "Deep audio understanding"
-                                            },
+                           "gemini-live":  {
+                                               "id":  "gemini-2.5-flash-native-audio-preview-12-2025",
+                                               "label":  "Audio Native Pro",
+                                               "desc":  "Deep audio understanding"
+                                           },
                            "audio-speech":  {
                                                 "id":  "gemini-2.5-flash-preview-tts",
                                                 "label":  "Speech Optimized",
@@ -138,7 +148,7 @@
                                                   "desc":  "Standard/Legacy vectorization"
                                               }
                        },
-    "current_model_handle":  "gemma-nano-pro",
+    "current_model_handle":  "gemma-4-fast",
     "colors":  {
                    "input_highlight":  "DarkMagenta",
                    "input_text":  "White",
@@ -147,5 +157,6 @@
                },
     "context_mode":  "standard",
     "color_scheme":  "default",
-    "smart_trim":  true
+    "smart_trim":  true,
+    "max_tool_turns": 8
 }
