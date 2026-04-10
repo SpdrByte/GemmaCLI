@@ -1,13 +1,13 @@
-# Gemma CLI: AI Agent in your terminal
+# Gemma CLI: Agentic AI Station for Gemma 4 & 3 - Free AI Agent in your terminal!
 
-![Version: 0.7.0](https://img.shields.io/badge/Version-0.7.0-green)
-![Model: Gemma 3](https://img.shields.io/badge/Model-Gemma%203-magenta)
+![Version: 0.8.0](https://img.shields.io/badge/Version-0.8.0-green)
+![Model: Gemma 4](https://img.shields.io/badge/Model-Gemma%204-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
 ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)
 [![Website](https://img.shields.io/badge/Web-SpdrByte.com-orange)](https://spdrbyte.com)
 
-Gemma CLI is a high-performance, extensible terminal workstation designed for Google's Gemma 3 model family. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, physical computing, and professional image generation.
+Gemma CLI is a high-performance, extensible **Agentic AI Station** designed for Google's **Gemma 4** and 3 model families. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, physical computing, and professional image generation. Utilizing **MoE (Mixture of Experts)** architectures and advanced **Adversarial Agent** pipelines, it delivers unprecedented reasoning power in a lightweight terminal package.
 
 ---
 
@@ -151,12 +151,13 @@ giving you full visibility into how the final answer was constructed.
 
 ---
 
-## Smart Trim
+## Smart Trim & RAG Memory
 
-Smart Trim manages conversation history when it approaches the context window limit (or context is triggering TPM limit). Instead of blindly dropping the oldest turns, it uses semantic embeddings to score each turn's relevance to your current query and keeps the most useful ones. How it works:
-When history exceeds the token budget, Smart Trim embeds your current message and every candidate history turn using gemini-embedding, computes cosine similarity scores, and retains the top N most relevant turns plus the last 4 turns unconditionally. Dropped turns are replaced with a notice so the model knows a trim occurred. If embedding fails for any reason (network, quota), it falls back to blind trimming dropping oldest turns first.
+Smart Trim manages conversation history when it approaches the context window limit (or context is triggering TPM limit). Instead of blindly dropping the oldest turns, it utilizes **RAG (Retrieval-Augmented Generation)** principles: it uses semantic embeddings to score each turn's relevance to your current query and keeps the most useful ones. 
 
-Access via /settings → Smart Trim.
+How it works: When history exceeds the token budget, Smart Trim embeds your current message and every candidate history turn using `gemini-embedding`, computes cosine similarity scores, and retains the top N most relevant turns plus the last 4 turns unconditionally. Dropped turns are replaced with a notice so the model knows a trim occurred. If embedding fails for any reason (network, quota), it falls back to blind trimming dropping oldest turns first.
+
+Access via `/settings` → Smart Trim. Additionally, the `/recall` command allows for explicit retrieval of long-term memories across sessions.
 
 ---
 
@@ -180,22 +181,25 @@ The CLI handles model selection automatically based on your intent. When you req
 
 ---
 
-## Interactive UI: Clickable Terminal Links
+## Interactive UI: Visual Width Engine
 
-To streamline your workflow, Gemma CLI supports **OSC 8 Hyperlinks**. This feature automatically scans Gemma's responses and tool results for Windows file paths and web URLs.
+Gemma CLI features a custom-built rendering engine designed for modern terminals.
 
-* **Ctrl + Click to Open**: Any detected file path (like a newly generated image or a script) becomes a clickable link.
-* **System Integration**: Clicking a path opens Windows Explorer or the default file handler instantly, eliminating the need to copy-paste paths.
-* **Modern Terminal Support**: Works seamlessly in Windows Terminal, VS Code, and other modern emulators.
+* **Visual Width Engine**: A sophisticated character measurement system that ensures perfect alignment of emojis, icons, and special Unicode characters across different terminal fonts.
+* **Tool Icons & Autonomy**: Every tool now supports custom icons, providing a rich, visual context when Gemma autonomously decides to execute a capability.
+* **Dynamic Text Wrapping**: Robust wrapping logic in both status boxes and interactive menus prevents text from escaping borders, even with long titles or complex descriptions.
+* **OSC 8 Hyperlinks**: Automatically scans Gemma's responses and tool results for Windows file paths and web URLs. **Ctrl + Click** to open paths instantly in Windows Explorer or your browser.
+* **Modern Terminal Support**: Optimized for **Windows Terminal**, providing high-fidelity ANSI rendering and a smooth, status-bar-driven workflow.
 
 ---
 
-## Reliability & Performance
+## Next-Gen Stability & Performance
 
-*   **Context Management**: Automatic history trimming and token budgeting (128k context window support) ensure conversations never crash due to size.
-*   **Rate Limit Protection**: Built-in RPM tracking and smart retry wrappers handle Google AI Studio quotas (Free and Pay-as-you-go tiers) gracefully.
-*   **API Orchestration**: Centralized API calls through `lib/Api.ps1` for improved reliability and performance.
-*   **Asynchronous Jobs**: Tool calls run in isolated background jobs with user-controlled "Allow/Deny" permissions and manual "Esc" cancellation.
+*   **Loop Safety & Synthesis**: Prevents infinite tool loops. If the configured `max_tool_turns` limit is reached, the CLI forces Gemma to synthesize a final response based on gathered data rather than dropping the turn.
+*   **Stability Guards**: Implements a mandatory 2-second gap between API calls and robust RPM tracking to ensure consistent performance on both free and paid reasoning tiers.
+*   **Interactive Main-Thread Execution**: Specialized tools (like `ask_user` or game setups) execute directly in the main console thread, allowing for rich, real-time user interaction without losing the background job's stability.
+*   **Cascading Fallbacks**: In the event of a quota exhaustion on premium models, the system can automatically fallback to highly efficient secondary models to maintain conversation flow.
+*   **Context Management**: Advanced history trimming and token budgeting (supporting 128k+ context windows) ensure long-running sessions remain responsive.
 
 ---
 
