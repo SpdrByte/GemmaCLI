@@ -19,7 +19,7 @@ The CLI features a custom-built rendering engine that provides structured feedba
 
 ---
 
-## 🛠️ Tool Library (45+)
+## 🛠️ Tool Library (50+)
 
 Gemma CLI features a massive suite of specialized tools.
 
@@ -60,6 +60,7 @@ GemmaCLI/
 ├── assets/            # UI images and tool-specific icons
 ├── config/            # Local configuration files
 ├── tests/             # Pester test suite
+├── temp/              # Dir for temp files used by tools
 ├── instructions.json  # System prompts & model configurations
 └── README.md          # You are here
 ```
@@ -96,6 +97,7 @@ Gemma CLI extends standard chat with a suite of management commands.
 | `/help` | Display all available interactive commands |
 | `/model` | Switch between reasoning tiers and specialized models (Interactive) |
 | `/tools [all]` | Show enabled/disabled/all tools with parameters and descriptions |
+| `/resume` | Resume last conversation session 
 | `/multiline` | Multiline for coding, pasting multiple lines |
 | `/settings` | Toggle UI color schemes and manage active/inactive tools |
 | `/speak [m/f]` | Toggle Text-to-Speech (TTS) output (Male/Female) |
