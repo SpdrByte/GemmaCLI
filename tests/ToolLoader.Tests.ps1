@@ -1,4 +1,4 @@
-# tests/ToolLoader.Tests.ps1
+﻿# tests/ToolLoader.Tests.ps1
 Describe "ToolLoader Module" {
     BeforeAll {
         $libPath = Join-Path $PSScriptRoot "../lib/ToolLoader.ps1"
@@ -89,6 +89,72 @@ $ToolMeta = @{
         $prompt | Should Match "Example"
         $prompt | Should Match "Usage Guidance \(Simplified\)"
         $prompt | Should Match "Simplified Guidance"
+        
+        Remove-Item $isolatedRoot -Recurse -Force
+    }
+
+    It "should inject Tool Synergies when related tools are both active" {
+        $model = "gemma-3-27b-it"
+        $limits = @{ "gemma-3-27b-it" = 2 }
+        
+        $isolatedRoot = Join-Path $PSScriptRoot "isolated_test_synergy"
+        $isolatedTools = Join-Path $isolatedRoot "tools"
+        if (-not (Test-Path $isolatedTools)) { New-Item -ItemType Directory -Path $isolatedTools -Force }
+        
+        $toolA = @'
+$ToolMeta = @{
+    Name = "tool_a"
+    Description = "Tool A Description"
+    Relationships = @{ "tool_b" = "Synergy Description A+B" }
+}
+'@
+        $toolB = @'
+$ToolMeta = @{
+    Name = "tool_b"
+    Description = "Tool B Description"
+}
+'@
+        Set-Content -Path (Join-Path $isolatedTools "tool_a.ps1") -Value $toolA
+        Set-Content -Path (Join-Path $isolatedTools "tool_b.ps1") -Value $toolB
+
+        $prompt = Get-ToolInstructions -ScriptRoot $isolatedRoot -Model $model -ToolLimits $limits
+        
+        $prompt | Should Match "## Tool Synergies"
+        $prompt | Should Match "#### Synergy: tool_a\+tool_b"
+        $prompt | Should Match "Synergy Description A\+B"
+        
+        Remove-Item $isolatedRoot -Recurse -Force
+    }
+
+    It "should NOT inject Tool Synergies when only one of the related tools is active" {
+        $model = "gemma-3-27b-it"
+        $limits = @{ "gemma-3-27b-it" = 1 } # Only load one tool
+        
+        $isolatedRoot = Join-Path $PSScriptRoot "isolated_test_no_synergy"
+        $isolatedTools = Join-Path $isolatedRoot "tools"
+        if (-not (Test-Path $isolatedTools)) { New-Item -ItemType Directory -Path $isolatedTools -Force }
+        
+        $toolA = @'
+$ToolMeta = @{
+    Name = "tool_a"
+    Description = "Tool A Description"
+    Relationships = @{ "tool_b" = "Synergy Description A+B" }
+}
+'@
+        $toolB = @'
+$ToolMeta = @{
+    Name = "tool_b"
+    Description = "Tool B Description"
+}
+'@
+        Set-Content -Path (Join-Path $isolatedTools "tool_a.ps1") -Value $toolA
+        Set-Content -Path (Join-Path $isolatedTools "tool_b.ps1") -Value $toolB
+
+        # limits=1 means only tool_a will be loaded (sorted by name)
+        $prompt = Get-ToolInstructions -ScriptRoot $isolatedRoot -Model $model -ToolLimits $limits
+        
+        $prompt | Should Not Match "## Tool Synergies"
+        $prompt | Should Not Match "Synergy Description A\+B"
         
         Remove-Item $isolatedRoot -Recurse -Force
     }

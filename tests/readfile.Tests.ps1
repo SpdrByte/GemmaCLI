@@ -1,4 +1,4 @@
-# tests/readfile.Tests.ps1
+﻿# tests/readfile.Tests.ps1
 
 Describe "Invoke-ReadFileTool Functionality" {
     BeforeAll {

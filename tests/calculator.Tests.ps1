@@ -1,4 +1,4 @@
-# tests/calculator.Tests.ps1
+﻿# tests/calculator.Tests.ps1
 $toolFile = "calculator.ps1"
 $path = Get-ChildItem -Path "$PSScriptRoot/../tools/$toolFile", "$PSScriptRoot/../more_tools/$toolFile" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 

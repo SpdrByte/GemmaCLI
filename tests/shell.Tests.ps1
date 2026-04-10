@@ -1,4 +1,4 @@
-# tests/shell.Tests.ps1
+﻿# tests/shell.Tests.ps1
 
 Describe "Shell Tool" {
     BeforeAll {

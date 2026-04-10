@@ -1,4 +1,4 @@
-# tests/Splatting.Tests.ps1
+﻿# tests/Splatting.Tests.ps1
 
 Describe "Tool Parameter Splatting" {
     BeforeAll {

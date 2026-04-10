@@ -1,4 +1,4 @@
-# tests/ael_tools.Tests.ps1
+﻿# tests/ael_tools.Tests.ps1
 # Responsibility: Validate ESP board database and AEL circuit validation logic.
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition

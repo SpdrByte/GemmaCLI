@@ -1,4 +1,4 @@
-# tests/timer.Tests.ps1
+﻿# tests/timer.Tests.ps1
 
 Describe "Timer Tool" {
     BeforeAll {

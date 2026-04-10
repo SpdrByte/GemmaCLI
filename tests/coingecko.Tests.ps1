@@ -1,4 +1,4 @@
-# tests/coingecko.Tests.ps1
+﻿# tests/coingecko.Tests.ps1
 
 Describe "CoinGecko Tool" {
     BeforeAll {

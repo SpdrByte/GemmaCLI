@@ -1,4 +1,4 @@
-# tests/gemmagotchi.Tests.ps1
+﻿# tests/gemmagotchi.Tests.ps1
 # Updated for v0.5.0 (5-tier hunger, sounds, midnight reset)
 
 Describe "Gemmagotchi Tool" {

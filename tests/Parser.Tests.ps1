@@ -1,4 +1,4 @@
-# tests/Parser.Tests.ps1
+﻿# tests/Parser.Tests.ps1
 Describe "Tool Call Parser" {
     BeforeAll {
         function Parse-ToolCall {

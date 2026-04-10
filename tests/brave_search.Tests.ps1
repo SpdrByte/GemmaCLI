@@ -1,4 +1,4 @@
-# tests/brave_search.Tests.ps1
+﻿# tests/brave_search.Tests.ps1
 
 Describe "Brave Search Tool" {
     BeforeAll {
@@ -6,20 +6,22 @@ Describe "Brave Search Tool" {
         if (-not (Test-Path $toolPath)) {
             $toolPath = Join-Path $PSScriptRoot "../more_tools/brave_search.ps1"
         }
+        # Mock dependencies
+        function Get-StoredKey { param($keyName) return $script:mockKey }
+        function Draw-Box { param($Lines, $Title, $Color) }
+
         $content = Get-Content -Path $toolPath -Raw -Encoding UTF8
         Invoke-Expression $content
     }
 
     It "should return an error if the API key is missing" {
-        $oldKey = $env:BRAVE_API_KEY
-        $env:BRAVE_API_KEY = $null
+        $script:mockKey = $null
         $result = Invoke-BraveSearchTool -query "test"
         $result | Should Match "ERROR: Brave API key not found"
-        $env:BRAVE_API_KEY = $oldKey
     }
 
     It "should return search results for a valid query" {
-        $env:BRAVE_API_KEY = "dummy-key"
+        $script:mockKey = "dummy-key"
         Mock Invoke-RestMethod {
             return @{
                 web = @{

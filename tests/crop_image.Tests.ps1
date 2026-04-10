@@ -1,4 +1,4 @@
-# tests/crop_image.Tests.ps1
+﻿# tests/crop_image.Tests.ps1
 
 Describe "Crop Image Tool" {
     BeforeAll {

@@ -1,4 +1,4 @@
-# tests/adventure.Tests.ps1
+﻿# tests/adventure.Tests.ps1
 $toolFile = "adventure.ps1"
 $adventureToolPath = Get-ChildItem -Path "$PSScriptRoot/../tools/$toolFile", "$PSScriptRoot/../more_tools/$toolFile" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 

@@ -1,4 +1,4 @@
-# tests/resize_image.Tests.ps1
+﻿# tests/resize_image.Tests.ps1
 
 Describe "Resize Image Tool" {
     BeforeAll {

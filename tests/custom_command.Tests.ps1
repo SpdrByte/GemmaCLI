@@ -1,4 +1,4 @@
-# tests/custom_command.Tests.ps1
+﻿# tests/custom_command.Tests.ps1
 
 Describe "Custom Command Expansion" {
     $script:customCommands = @{

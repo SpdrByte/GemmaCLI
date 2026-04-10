@@ -1,4 +1,4 @@
-# tests/Sanitization.Tests.ps1
+﻿# tests/Sanitization.Tests.ps1
 Describe "JSON Sanitization Logic" {
     BeforeAll {
         function Sanitize-Json {

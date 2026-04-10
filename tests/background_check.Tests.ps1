@@ -1,4 +1,4 @@
-Describe 'background_check.ps1' {
+﻿Describe 'background_check.ps1' {
     # Source the script to be tested
     $toolFile = "background_check.ps1"
     $path = Get-ChildItem -Path "$PSScriptRoot/../tools/$toolFile", "$PSScriptRoot/../more_tools/$toolFile" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName

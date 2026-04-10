@@ -1,4 +1,4 @@
-# tests/insulin_calc.Tests.ps1
+﻿# tests/insulin_calc.Tests.ps1
 
 Describe "Insulin Calculator Tool" {
     BeforeAll {
