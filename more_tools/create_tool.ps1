@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - create_tool.ps1 v1.1.0
+﻿# ===============================================
+# GemmaCLI Tool - create_tool.ps1 v1.2.0
 # Responsibility: Autonomous Tool Creator via Multi-Agent Evolutionary Pipeline
 # Uses native AST parsing and dual-agent feedback loops.
 # ===============================================
@@ -13,31 +13,27 @@ function Invoke-CreateTool {
     $results += "============================================================"
     $results += " Goal: $prompt"
 
-    # Define API Endpoints
+    # Define API Endpoints - Balanced for precision and free-tier frequency
     $baseUri = "https://generativelanguage.googleapis.com/v1beta/models"
-    $architectUri = "$baseUri/$(Resolve-ModelId 'gemini-stable-pro'):generateContent?key=$script:API_KEY"
-    $reviewerUri  = "$baseUri/$(Resolve-ModelId 'gemini-stable-fast'):generateContent?key=$script:API_KEY"
-    $fixerUri     = "$baseUri/$(Resolve-ModelId 'gemini-stable-fast'):generateContent?key=$script:API_KEY"
-    $synthesisUri = "$baseUri/$(Resolve-ModelId 'gemini-stable-pro'):generateContent?key=$script:API_KEY"
+    $architectUri = "$baseUri/$(Resolve-ModelId 'gemini-fast'):generateContent?key=$script:API_KEY"
+    $reviewerUri  = "$baseUri/$(Resolve-ModelId 'gemini-lite'):generateContent?key=$script:API_KEY"
+    $fixerUri     = "$baseUri/$(Resolve-ModelId 'gemini-lite'):generateContent?key=$script:API_KEY"
+    $synthesisUri = "$baseUri/$(Resolve-ModelId 'gemini-stable-fast'):generateContent?key=$script:API_KEY"
 
-    # We need an API call helper that returns just the text, bypassing Start-Job if we're already in a Job
+    # We need an API call helper that uses our centralized Invoke-SingleTurnApi for robust rate limiting
     function Call-LLM($uri, $systemInstruction, $userPrompt, $label) {
-        Write-Host "   -> $label" -ForegroundColor DarkGray
+        $fullPrompt = "SYSTEM INSTRUCTION:`n$systemInstruction`n`nUSER PROMPT:`n$userPrompt"
         
-        $body = @{
-            systemInstruction = @{ parts = @( @{ text = $systemInstruction } ) }
-            contents = @( @{ role = "user"; parts = @( @{ text = $userPrompt } ) } )
-            generationConfig = @{ temperature = 0.4 }
+        $result = Invoke-SingleTurnApi `
+            -uri $uri `
+            -prompt $fullPrompt `
+            -spinnerLabel $label `
+            -backend "gemini"
+
+        if ($result -match "^ERROR:") {
+            return "API_ERROR: $result"
         }
-        $json = $body | ConvertTo-Json -Depth 10 -Compress
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-        try {
-            $resp = Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body $bytes -ErrorAction Stop
-            $text = $resp.candidates[0].content.parts[0].text
-            return $text
-        } catch {
-            return "API_ERROR: $($_.Exception.Message)"
-        }
+        return $result
     }
 
     # Extract Code Block
@@ -58,12 +54,46 @@ function Invoke-CreateTool {
     # 1. The Architect (Gemini 2.5 Pro)
     $results += "`n[PHASE 1] The Architect (Gemini 2.5 Pro) drafting initial code..."
     $sysArchitect = @"
-You are an expert PowerShell developer creating tools for GemmaCLI.
-A GemmaCLI tool MUST:
-1. Define a main function (e.g. Invoke-MyTool).
-2. Define a `$ToolMeta` hash table at the bottom with: Name, Description, Behavior, Parameters (hash table), Example, FormatLabel (scriptblock), Execute (scriptblock), ToolUseGuidanceMajor, ToolUseGuidanceMinor.
-3. NEVER write anything outside the function and `$ToolMeta`.
-4. Output ONLY valid PowerShell code wrapped in ```powershell ```.
+You are an expert PowerShell developer creating tools for GemmaCLI v0.8.0.
+A GemmaCLI tool MUST follow this exact structure:
+
+1. HEADER: Start with a standard header:
+# ===============================================
+# GemmaCLI Tool - [filename].ps1 v1.0.0
+# Responsibility: [One sentence description]
+# ===============================================
+
+2. WORKER FUNCTION: Define a function 'Invoke-[ToolName]Tool' that does the work.
+
+3. METADATA: Define a `$ToolMeta` hash table at the bottom with:
+   - Name: (string, lowercase, no spaces)
+   - Description: (string, concise)
+   - Category: (array of strings)
+   - RendersToConsole: (boolean, set to true ONLY if using Draw-Box/Write-Host directly)
+   - RequiresBilling: (boolean, true if using Grounding/Paid features)
+   - RequiresKey: (boolean, true if requiring a unique external API key)
+   - KeyUrl: (string, URL to get the key if RequiresKey is true)
+   - Behavior: (string, detailed reasoning for high-capacity models)
+   - Parameters: (hashtable defining inputs)
+   - Example: (string showing a <tool_call> example)
+   - FormatLabel: (MANDATORY: ScriptBlock { param($p) ... } - DO NOT USE A STRING)
+   - Execute: (MANDATORY: ScriptBlock { param($params) Invoke-MyTool @params } - DO NOT USE A STRING)
+   - ToolUseGuidanceMajor/Minor: (strings for multi-tier guidance)
+
+4. UI PROTOCOLS (CRITICAL):
+   - The CLI uses a split protocol. Content between 'CONSOLE::' and '::END_CONSOLE::' is shown to the HUMAN in grey and STRIPPED from the AI's view.
+   - Approach A (Rich UI): Set 'RendersToConsole = $true'. Use 'Draw-Box'. 
+     Return: "CONSOLE::[User-facing summary]::END_CONSOLE::[Detailed data for the AI]"
+   - Approach B (Simple UI): Set 'RendersToConsole = $false'. 
+     Return: "CONSOLE::[User-facing summary]::END_CONSOLE::[Detailed data for the AI]"
+   - MANDATORY: You MUST return data for the AI after '::END_CONSOLE::'. If you return an empty string after the delimiter, the AI will see "(empty result)".
+
+5. AUDIO/SYSTEM ALERTS:
+   - To trigger sounds, include these in the CONSOLE portion of your return string:
+   - PLAY_SOUND:filename (e.g. PLAY_SOUND:tada)
+   - BEEP:freq,dur (e.g. BEEP:523,80)
+
+6. NO markdown outside code blocks. Output ONLY valid PowerShell code wrapped in ```powershell ```.
 "@
     $draftRaw = Call-LLM -uri $architectUri -systemInstruction $sysArchitect -userPrompt "Create a tool that does the following: $prompt" -label "Drafting initial iteration..."
     $currentCode = Extract-Code $draftRaw
@@ -105,7 +135,14 @@ If it's perfect, output: ````json {"status": "pass", "issues": []} ````
 If there are issues, output: ````json {"status": "fail", "issues": ["issue 1", "issue 2"]} ````
 Output ONLY JSON.
 "@
-        $reviewRaw = Call-LLM -uri $reviewerUri -systemInstruction $sysReviewer -userPrompt "Review this code:\n\n```powershell\n$currentCode\n```" -label "Reviewer analyzing code structure..."
+        $revPrompt = @"
+Review this code:
+
+```powershell
+$currentCode
+```
+"@
+        $reviewRaw = Call-LLM -uri $reviewerUri -systemInstruction $sysReviewer -userPrompt $revPrompt -label "Reviewer analyzing code structure..."
         $reviewJsonStr = Extract-Json $reviewRaw
         
         $reviewObj = $null
@@ -124,12 +161,12 @@ Output ONLY JSON.
         }
 
         if ($allIssues.Count -eq 0) {
-            $results += "   -> ✅ Linter & Reviewer passed. Code is pristine."
+            $results += "   -> $([char]0x2705) Linter and Reviewer passed. Code is pristine."
             $isPerfect = $true
             break
         }
 
-        $results += "   -> ❌ Found issues. Sending to Fixer."
+        $results += "   -> $([char]0x274C) Found issues. Sending to Fixer."
         foreach ($issue in $allIssues) {
             $results += "      - $(if($issue.length -gt 100){$issue.substring(0,100)+"..."}else{$issue})"
         }
@@ -139,7 +176,16 @@ Output ONLY JSON.
 You are the Fixer. You receive broken PowerShell code and a list of issues.
 Fix the code perfectly. Return ONLY the fully fixed PowerShell code wrapped in ```powershell ```.
 "@
-        $fixPrompt = "Current Code:\n```powershell\n$currentCode\n```\n\nIssues to fix:\n$($allIssues -join "`n")"
+        $issuesStr = $allIssues -join "`n"
+        $fixPrompt = @"
+Current Code:
+```powershell
+$currentCode
+```
+
+Issues to fix:
+$issuesStr
+"@
         $fixRaw = Call-LLM -uri $fixerUri -systemInstruction $sysFixer -userPrompt $fixPrompt -label "Fixer applying patches..."
         
         $patchedCode = Extract-Code $fixRaw
@@ -158,7 +204,13 @@ You are the Master Arbitrator. The previous agents failed to achieve a perfect s
 Fix any remaining issues and output the absolute best, final version of this PowerShell GemmaCLI tool.
 Output ONLY the raw PowerShell code wrapped in ```powershell ```.
 "@
-        $finalRaw = Call-LLM -uri $synthesisUri -systemInstruction $sysArbitrator -userPrompt "Make this code work:\n```powershell\n$currentCode\n```" -label "Arbitrator synthesizing final version..."
+        $finalPrompt = @"
+Make this code work:
+```powershell
+$currentCode
+```
+"@
+        $finalRaw = Call-LLM -uri $synthesisUri -systemInstruction $sysArbitrator -userPrompt $finalPrompt -label "Arbitrator synthesizing final version..."
         $finalCode = Extract-Code $finalRaw
         if (-not ($finalCode -match "API_ERROR")) {
             $currentCode = $finalCode
@@ -178,10 +230,11 @@ Output ONLY the raw PowerShell code wrapped in ```powershell ```.
     if (-not (Test-Path $outDir)) { New-Item -Path $outDir -ItemType Directory -Force | Out-Null }
     
     $outPath = Join-Path $outDir "$toolName.ps1"
-    Set-Content -Path $outPath -Value $currentCode -Encoding UTF8 -Force
+    # Use .NET to ensure UTF-8 WITH BOM, mandatory for PS 5.1 emoji support
+    [System.IO.File]::WriteAllText($outPath, $currentCode, [System.Text.UTF8Encoding]::new($true))
 
     $results += "`n============================================================"
-    $results += " ✅ TOOL CREATION COMPLETE "
+    $results += " $([char]0x2705) TOOL CREATION COMPLETE "
     $results += " 📁 Saved to: $outPath"
     $results += " Use '/settings' or move to 'tools/' to enable it."
     $results += "============================================================"
@@ -191,6 +244,7 @@ Output ONLY the raw PowerShell code wrapped in ```powershell ```.
 
 $ToolMeta = @{
     Name        = "create_tool"
+    Icon        = "🛠️"
     RendersToConsole = $false
     Category    = @("Coding/Development")
     Behavior    = "Autonomous Tool Creator. Use this when the user asks you to 'create a tool that does X'. This tool orchestrates a multi-agent pipeline to generate, parse, review, and fix a complete .ps1 tool script before saving it to the more_tools folder."
@@ -201,7 +255,7 @@ $ToolMeta = @{
     Example     = "<tool_call>{ `"name`": `"create_tool`", `"parameters`": { `"prompt`": `"A tool that fetches the weather using wttr.in`" } }</tool_call>"
     FormatLabel = { 
         param($p) 
-        "🛠️ ToolForge -> $(if($p.prompt.length -gt 30){$p.prompt.substring(0,30)+'...'}else{$p.prompt})" 
+        "ToolForge -> $(if($p.prompt.length -gt 30){$p.prompt.substring(0,30)+'...'}else{$p.prompt})" 
     }
     Execute     = {
         param($params)

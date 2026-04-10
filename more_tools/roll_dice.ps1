@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - roll_dice.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - roll_dice.ps1 v0.3.0
 # Responsibility: Parses and rolls dice expressions with visual ASCII feedback.
 # ===============================================
 
@@ -152,13 +152,14 @@ function Invoke-RollTool {
 # --- Registration ---
 $ToolMeta = @{
     Name        = "roll_dice"
+    Icon        = "🎲"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
     Behavior    = "Rolls dice using standard RPG notation (e.g. 2d6, 1d20+5). Returns visual ASCII dice and a full breakdown."
     Description = "Evaluates dice expressions. Returns rolls, visual art, total, and crit flags."
     Parameters  = @{ expression = "string - e.g. '2d6', '1d20+5', 'd8'" }
     Example     = "<tool_call>{ ""name"": ""roll_dice"", ""parameters"": { ""expression"": ""1d20+5"" } }</tool_call>"
-    FormatLabel = { param($p) "🎲 RollDice -> $($p.expression)" }
+    FormatLabel = { param($p) "$($p.expression)" }
     Execute     = { param($params) Invoke-RollTool -expression $params.expression }
     ToolUseGuidanceMajor = @"
         - When to use 'roll_dice': Any time a random dice-based result is needed.

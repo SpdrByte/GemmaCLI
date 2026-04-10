@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - nanobanana.ps1 v0.4.0
+﻿# ===============================================
+# GemmaCLI Tool - nanobanana.ps1 v0.5.0
 # Responsibility: Two-phase image generation with precise model-specific ratio filtering.
 # ===============================================
 
@@ -150,6 +150,7 @@ function Invoke-NanoBananaTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "nanobanana"
+    Icon        = "🍌"
     RendersToConsole = $false
     Category    = @("Digital Media Production", "Gaming/Entertainment")
     Behavior    = "Use this tool to generate images. It uses a two-step process: First confirm the size to find valid ratios, then generate."
@@ -162,7 +163,7 @@ $ToolMeta = @{
         count        = "int - Number of images (1-4). Default is 1."
     }
     Example     = "<tool_call>{ ""name"": ""nanobanana"", ""parameters"": { ""prompt"": ""A cat."", ""image_size"": ""1K"" } }</tool_call>"
-    FormatLabel = { param($p) "🍌 NanoBanana -> $($p.prompt) [$($p.image_size)]" }
+    FormatLabel = { param($p) "$($p.prompt) [$($p.image_size)]" }
     Execute     = { param($params) Invoke-NanoBananaTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'nanobanana': Use this whenever the user wants to create an image.

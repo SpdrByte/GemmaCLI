@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - remember.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - remember.ps1 v0.2.0
 # Responsibility: Appends a single fact (with category and date) to a JSON file
 # for long-term memory recall in future sessions.
 # ===============================================
@@ -55,6 +55,7 @@ function Invoke-RememberTool {
 
 $ToolMeta = @{
     Name        = "remember"
+    Icon        = "🧠"
     RendersToConsole = $false
     Category    = @("Memory Management")
     Behavior    = "Use this tool to memorize a specific piece of information the user tells you. This is for long-term memory across sessions."
@@ -64,7 +65,7 @@ $ToolMeta = @{
         category = "string - a category for the fact, e.g. 'personal', 'project', 'preference'"
     }
     Example     = "<tool_call>{ ""name"": ""remember"", ""parameters"": { ""fact"": ""The user's favorite programming language is PowerShell."", ""category"": ""preference"" } }</tool_call>"
-    FormatLabel = { param($params) "🧠 Remember -> $($params.fact)" }
+    FormatLabel = { param($params) "$($params.fact)" }
     Execute     = { param($params) Invoke-RememberTool -fact $params.fact -category $params.category }
     ToolUseGuidanceMajor = @"
         - When to use 'remember': Use this tool to store specific, user-related facts or preferences for long-term recall across sessions. This is critical for personalizing future interactions and streamlining workflows based on user's explicit statements or inferred preferences.

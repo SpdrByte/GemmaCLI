@@ -1,5 +1,6 @@
 # ===============================================
-# GemmaCLI Tool - arduino_boards.ps1 v1.0.1
+# GemmaCLI Tool - arduino_boards.ps1 v0.3.0
+
 # Responsibility: Board knowledge for the Arduino family.
 #                 Lists boards, pins, protocols, metadata, and renders
 #                 ASCII board diagrams with optional AEL pin highlighting.
@@ -387,8 +388,12 @@ function Invoke-ArduinoBoards {
 
 $ToolMeta = @{
     Name        = "arduino_boards"
+    Icon        = "🔌"
     RendersToConsole = $true
     Category    = @("Physical Computing")
+    Relationships = @{
+        "ael_validate" = "Use this synergy for advanced physical computing workflows. When the user requests a circuit, first use 'arduino_boards' to find valid pin names and protocol-capable pins (PWM, I2C, etc.). Generate the AEL circuit, then call 'ael_validate' to verify it. ONLY after a successful validation should you call 'arduino_boards' with action='diagram' and the 'ael' parameter to show the user the final, verified wiring diagram."
+    }
     Behavior    = "Provides pin maps, protocol capabilities, voltage data, and ASCII board diagrams for the Arduino family. Call this ONLY when the user explicitly requests circuit help, pin information, or a board diagram for an Arduino board. Do NOT call proactively or at session start."
     Description = "Query Arduino board data: list boards, list pins, filter by protocol, check pin existence, get pin metadata, or render an ASCII board diagram with optional AEL pin highlighting."
     Parameters  = @{
@@ -410,7 +415,7 @@ $ToolMeta = @{
         $b   = if ($p.board) { " $ARR $($p.board)" } else { "" }
         $vndr = if ($p.vendor -and $p.vendor -ne "Arduino") { " [$($p.vendor)]" } else { "" }
         $pin = if ($p.pin)   { " [$($p.pin)]" }       else { "" }
-        "Arduino Boards  $ARR  $($p.action)$b$vndr$pin"
+        "$($p.action)$b$vndr$pin"
     }
     Execute     = {
         param($params)
@@ -427,12 +432,6 @@ $ToolMeta = @{
     ToolUseGuidanceMajor = @"
 - When to use 'arduino_boards': ALWAYS use when the user explicitly asks for a circuit, pin information, or a board diagram for an Arduino board. Do not draw your own. 
 - action='diagram' renders a colour-coded ASCII board layout. Pass 'ael' to highlight which pins are in use.
-- Recommended workflow for circuit generation:
-    1. Call arduino_boards action='list_pins' to confirm valid pin names
-    2. Call arduino_boards action='filter_protocol' if circuit uses I2C/SPI/UART/PWM/ADC
-    3. Generate AEL using the returned pin names
-    4. Call ael_validate to check the circuit
-    5. Call arduino_boards action='diagram' with the validated AEL to show the board with used pins highlighted
 - action='list_boards' — no other params needed
 - action='list_pins' — requires 'board'
 - action='filter_protocol' — requires 'board' and 'protocol' (I2C, SPI, UART, PWM, ADC)

@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - git.ps1 v0.1.0
+# GemmaCLI Tool - git.ps1 v0.2.0
 # Responsibility: Check various git data
 # ===============================================
 
@@ -71,6 +71,7 @@ function Invoke-GitTool {
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "git"
+    Icon        = "🔍"
     RendersToConsole = $false
     Category    = @("System Administration", "Coding/Development")
 
@@ -83,7 +84,7 @@ $ToolMeta = @{
     
     Example     = '<tool_call>{"name": "git", "parameters": {"action": "status"}}</tool_call>'
     
-    FormatLabel = { param($params) "🔍 Git Action" }
+    FormatLabel = { param($params) "$($params.action)" }
     
     Execute     = {
         param($params)

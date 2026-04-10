@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - resize_image.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - resize_image.ps1 v0.2.0
 # Responsibility: Resizes an image to specific dimensions (stretching).
 # ===============================================
 
@@ -71,6 +71,7 @@ function Invoke-ResizeImageTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "resize_image"
+    Icon        = "📐"
     RendersToConsole = $false
     Category    = @("Digital Media Production")
     Behavior    = "Use this tool to resize an image to specific dimensions. Supported formats: PNG, JPG, JPEG, and GIF. Does NOT support WEBP or HEIC. Note that this tool will stretch the image to fit the requested width and height exactly."
@@ -81,6 +82,6 @@ $ToolMeta = @{
         height    = "int - Target height in pixels."
     }
     Example     = "<tool_call>{ ""name"": ""resize_image"", ""parameters"": { ""file_path"": ""C:\temp\image.png"", ""width"": 1920, ""height"": 1080 } }</tool_call>"
-    FormatLabel = { param($p) "📐 Resize -> $(Split-Path $p.file_path -Leaf) to $($p.width)x$($p.height)" }
+    FormatLabel = { param($p) "$(Split-Path $p.file_path -Leaf) to $($p.width)x$($p.height)" }
     Execute     = { param($params) Invoke-ResizeImageTool @params }
 }

@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - chess.ps1 v1.0.1
+﻿# ===============================================
+# GemmaCLI Tool - chess.ps1 v1.1.0
 # Responsibility: Stateful chess game with perfect legal-move validation.
 # Uses Unicode pieces (♘ ♞ etc.) and python-chess for 100% correct rules.
 # ===============================================
@@ -150,6 +150,7 @@ $_.Replace('.','░').Replace('#','█').Replace('P','♙').Replace('N','♘').R
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "chess"
+    Icon        = "♟️"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
     Behavior    = "Stateful chess game. Always use this tool for any chess move so Gemma cannot play illegal moves."
@@ -159,7 +160,7 @@ $ToolMeta = @{
         move   = "The move to play (UCI e2e4 or SAN Nf3, O-O, e8=Q, etc.) — only used with action=move"
     }
     Example     = '<tool_call>{ "name": "chess", "parameters": { "action": "move", "move": "e2e4" } }</tool_call>'
-    FormatLabel = { param($p) "♟ Chess -> $($p.action)$(if($p.move){" $($p.move)"})" }
+    FormatLabel = { param($p) "$($p.action)$(if($p.move){" $($p.move)"})" }
     Execute     = { param($p) Invoke-ChessTool @p }
 
     ToolUseGuidanceMajor = @"

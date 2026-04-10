@@ -1,4 +1,4 @@
-# tools/timer.ps1
+﻿# tools/timer.ps1 v1.1.0
 # Responsibility: Simple countdown timer that plays a sound upon completion.
 #                 Runs in a loop to keep the GemmaCLI spinner active.
 
@@ -33,6 +33,7 @@ function Invoke-TimerTool {
 
 $ToolMeta = @{
     Name             = "timer"
+    Icon             = "⏲️"
     RendersToConsole = $false
     Category         = @("Utility", "Time")
     Behavior         = "Use this tool to set a countdown timer for a specific number of seconds. The CLI will show a spinner until the time is up, then play an alarm sound. Do not call this for durations longer than 300 seconds (5 minutes) unless specifically requested."
@@ -41,6 +42,6 @@ $ToolMeta = @{
         length_seconds = "integer - required. The number of seconds to wait before the alarm sounds."
     }
     Example          = "<tool_call>{ ""name"": ""timer"", ""parameters"": { ""length_seconds"": 60 } }</tool_call>"
-    FormatLabel      = { param($p) "⏲️ timer -> $($p.length_seconds)s" }
+    FormatLabel      = { param($p) "$($p.length_seconds)s" }
     Execute          = { param($params) Invoke-TimerTool @params }
 }

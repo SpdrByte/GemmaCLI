@@ -1,10 +1,11 @@
-# ===============================================
-# GemmaCLI Tool - code_analyzer.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - code_analyzer.ps1 v0.3.0
 # Responsibility: Analyze code via dual agent pipeline
 # ===============================================
 
 $ToolMeta = @{
     Name        = "code_analyzer"
+    Icon        = "🔍"
     RendersToConsole = $false
     Category    = @("Coding/Development")
     Description = "Analyzes code for errors, security vulnerabilities, style issues, performance problems and suggests fixes. Powered by Gemma for expert-level, language-agnostic analysis."
@@ -40,7 +41,7 @@ $ToolMeta = @{
     FormatLabel = {
         param($p)
         $types = if ($p.analysis_type) { ($p.analysis_type -join ', ') } else { "security+style+errors" }
-        "🔍 Code Analyzer • $($p.language) • $types"
+        "$($p.language) • $types"
     }
     Execute = {
         param($params)

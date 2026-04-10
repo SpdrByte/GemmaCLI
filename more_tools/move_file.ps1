@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - move_file.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - move_file.ps1 v0.2.0
 # Responsibility: Move file to different directory
 # ===============================================
 
@@ -22,6 +22,7 @@ function Invoke-MoveFileTool {
 
 $ToolMeta = @{
     Name        = "move_file"
+    Icon        = "📂"
     RendersToConsole = $false
     Category    = @("System Administration")
     Behavior    = "Use this tool to move or rename a file. This is the primary tool for file organization."
@@ -30,8 +31,8 @@ $ToolMeta = @{
         source      = "string - the path to the file to move"
         destination = "string - the new path for the file"
     }
-    Example     = "<tool_call>{ ""name"": ""move_file"", ""parameters"": { ""source"": ""./old/file.txt"", ""destination"": ""./new/file.txt"" } }</tool_call>"
-    FormatLabel = { param($params) "📂 Move_file -> $($params.source) to $($params.destination)" }
+    Example     = '<tool_call>{ "name": "move_file", "parameters": { "source": "./old/file.txt", "destination": "./new/file.txt" } }</tool_call>'
+    FormatLabel = { param($params) "$($params.source) to $($params.destination)" }
     Execute     = { param($params) Invoke-MoveFileTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'move_file': Use this tool to relocate a file from a `source` path to a `destination` path, or to rename a file by specifying a new file name in the `destination` path. This is a primary tool for file organization.

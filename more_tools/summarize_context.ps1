@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - summarize_context.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - summarize_context.ps1 v0.3.0
 # Responsibility: Sends conversation history to Gemini Flash 2.5 Lite,
 #                 generates a structured markdown summary, saves to .md file.
 # ===============================================
@@ -123,6 +123,7 @@ $historySummary
 
 $ToolMeta = @{
     Name        = "summarize_context"
+    Icon        = "📋"
     RendersToConsole = $false
     Category    = @("Help/Consultation", "Memory Management")
     Behavior    = "Summarizes the current conversation history into a structured Markdown document and saves it as a .md file. Use when the user wants to save, export, or recap the conversation."
@@ -131,7 +132,7 @@ $ToolMeta = @{
         filename = "string - (optional) Base name for the output file, without extension. Defaults to 'summary'. Auto-increments if the file already exists (e.g. summary(1).md)."
     }
     Example     = "<tool_call>{ ""name"": ""summarize_context"", ""parameters"": { ""filename"": ""project_recap"" } }</tool_call>"
-    FormatLabel = { param($p) "📋 SummarizeContext -> $(if ($p.filename) { "$($p.filename).md" } else { 'summary.md' })" }
+    FormatLabel = { param($p) "$(if ($p.filename) { "$($p.filename).md" } else { 'summary.md' })" }
     Execute     = {
         param($params)
         $filename = if ($params.filename) { $params.filename } else { "" }

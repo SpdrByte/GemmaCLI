@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - compare_ps1.ps1 v0.1.0
+﻿# ===============================================
+# GemmaCLI Tool - compare_ps1.ps1 v0.2.0
 # Responsibility: Compares two PowerShell files and shows line-by-line differences.
 # ===============================================
 
@@ -40,6 +40,7 @@ function Invoke-ComparePs1Tool {
 
 $ToolMeta = @{
     Name        = "compare_ps1"
+    Icon        = "↔️"
     RendersToConsole = $false
     Category    = @("Coding/Development")
     Behavior    = "Use this tool to compare two PowerShell (.ps1) files. It is useful for finding differences between versions of a script or comparing tools across workspaces."
@@ -49,7 +50,7 @@ $ToolMeta = @{
         file2 = "string - Path to the second .ps1 file."
     }
     Example     = "<tool_call>{ ""name"": ""compare_ps1"", ""parameters"": { ""file1"": ""./tools/readfile.ps1"", ""file2"": ""./tools_backup/readfile.ps1"" } }</tool_call>"
-    FormatLabel = { param($params) "🔍 Compare PS1 -> $($params.file1) vs $($params.file2)" }
+    FormatLabel = { param($params) "$(Split-Path $params.file1 -Leaf) vs $(Split-Path $params.file2 -Leaf)" }
     Execute     = {
         param($params)
         Invoke-ComparePs1Tool -file1 $params.file1 -file2 $params.file2

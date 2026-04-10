@@ -1,4 +1,4 @@
-# GemmaCLI Tool - searchdir.ps1 v0.2.0
+﻿# GemmaCLI Tool - searchdir.ps1 v0.3.0
 # Responsibility: Searches a directory for files/folders matching a pattern.
 # ===============================================
 
@@ -42,6 +42,7 @@ function Invoke-SearchDirTool {
 
 $ToolMeta = @{
     Name        = "searchdir"
+    Icon        = "🔍"
     RendersToConsole = $false
     Category    = @("System Administration", "Search and Discover")
     Behavior    = "Use this tool to find files or directories. It is useful for exploring the file system and locating specific files."
@@ -55,7 +56,7 @@ $ToolMeta = @{
         exclude       = "string - wildcard pattern to exclude from the results (e.g., '*.log')"
     }
     Example     = "<tool_call>{ ""name"": ""searchdir"", ""parameters"": { ""dir_path"": ""."", ""search_string"": ""*.md"", ""recursive"": true } }</tool_call>"
-    FormatLabel = { param($params) "🔍 Searchdir -> $($params.search_string) in $($params.dir_path)" }
+    FormatLabel = { param($params) "$($params.search_string) in $($params.dir_path)" }
     Execute     = { param($params) Invoke-SearchDirTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'searchdir': Use this tool to verify the existence of files or directories before attempting to 'readfile' or 'view_image', especially if the user has not provided an explicit path. This helps adhere to the 'Strict Evidence Policy'.

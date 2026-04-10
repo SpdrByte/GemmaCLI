@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - speakfile.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - speakfile.ps1 v0.3.0
 # Responsibility: Reads a file aloud using Windows TTS (SAPI.SpVoice).
 #                 Auto-calculates a safe timeout from word count so Gemma
 #                 never needs to guess. Exposes a rate param (-10..10) so
@@ -88,6 +88,7 @@ function Invoke-SpeakFileTool {
 
 $ToolMeta = @{
     Name             = "speakfile"
+    Icon             = "🔊"
     RendersToConsole = $false
     Category         = @("Accessibility", "File Management")
     Behavior         = "Use this tool to read a file aloud using Windows TTS. The timeout is calculated automatically from the file's word count — you do not need to pass timeout_seconds. Use the 'rate' parameter to control speed: 0 is natural pace (~150 wpm), 3-4 is comfortably faster for long files, up to 10 for maximum speed. After the tool returns, only briefly acknowledge completion — do not repeat or summarise the content, as the user has already heard it."
@@ -99,7 +100,7 @@ $ToolMeta = @{
     Example          = "<tool_call>{ ""name"": ""speakfile"", ""parameters"": { ""file_path"": ""notes.txt"", ""rate"": ""0"" } }</tool_call>"
     FormatLabel      = { param($p)
         $rateLabel = if ($p.rate -and $p.rate -ne "0") { " @ rate $($p.rate)" } else { "" }
-        "🔊 speakfile -> $($p.file_path)$rateLabel"
+        "$($p.file_path)$rateLabel"
     }
     Execute          = { param($params) Invoke-SpeakFileTool @params }
     ToolUseGuidanceMajor = @"

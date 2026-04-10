@@ -1,5 +1,6 @@
 # ===============================================
-# GemmaCLI Tool - audioedit.ps1 v1.5.0
+# GemmaCLI Tool - audioedit.ps1 v0.2.0
+
 # Responsibility: Audio editing via FFmpeg (Gyan.FFmpeg v8.1+)
 #
 # EDIT      trim, split, insert, overwrite, concat, mix
@@ -852,6 +853,7 @@ function Invoke-AudioEditTool {
 
 $ToolMeta = @{
     Name             = "audioedit"
+    Icon             = "🎵"
     RendersToConsole = $false
     Category         = @("Digital Media Production")
 
@@ -950,7 +952,7 @@ FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmp
 
     FormatLabel = {
         param($p)
-        $icon = switch ($p.operation) {
+        $opIcon = switch ($p.operation) {
             "trim"      { "✂️" }
             "split"     { "🔀" }
             "insert"    { "📌" }
@@ -966,14 +968,16 @@ FORMATS SUPPORTED: mp3, wav, flac, aac, ogg, m4a, opus, wma, and any format FFmp
             "loop"      { "🔁" }
             "metadata"  { "🏷️" }
             "convert"   { "🔄" }
-            default     { "🎵" }
+            default     { "" }
         }
         $target = if ($p.file_path) { Split-Path $p.file_path -Leaf } `
                   elseif ($p.file_paths) { "multiple files" } `
                   elseif ($p.output_path) { Split-Path $p.output_path -Leaf } `
                   elseif ($p.type) { $p.type } `
                   else { "?" }
-        "$icon audioedit [$($p.operation)] -> $target"
+        
+        if ($opIcon) { "[$opIcon $($p.operation)] -> $target" }
+        else { "[$($p.operation)] -> $target" }
     }
 
     Execute = { param($params) Invoke-AudioEditTool @params }

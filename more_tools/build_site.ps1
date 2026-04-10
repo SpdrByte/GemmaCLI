@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - build_site.ps1 v0.1.0
+﻿# ===============================================
+# GemmaCLI Tool - build_site.ps1 v0.2.0
 # Responsibility: Automates website deployment preparation.
 #                 Syncs a source directory to a build staging area,
 #                 creates a compressed archive, and verifies output.
@@ -265,6 +265,7 @@ function Invoke-BuildSite {
 
 $ToolMeta = @{
     Name             = "build_site"
+    Icon             = "🏗️"
     RendersToConsole = $true
     Category    = @("Coding/Development")
     Behavior         = "Prepares website files for deployment: validates source paths, syncs to a build directory, and produces a compressed archive. Call when the user wants to build, package, or deploy website files. Do NOT call proactively or speculatively."
@@ -286,10 +287,10 @@ $ToolMeta = @{
 "@
     FormatLabel      = { param($p)
         $src = ""
-        if ($p.sourcePath) { $src = " $([string][char]0x2192) $($p.sourcePath)" }
+        if ($p.sourcePath) { $src = " $ARR $($p.sourcePath)" }
         $dry = ""
         if ($p.dryRun -eq "true") { $dry = " [dry-run]" }
-        "build_site  $([string][char]0x2192)  $($p.action)$src$dry"
+        "$($p.action)$src$dry"
     }
     Execute          = {
         param($params)

@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - persona.ps1 v1.0.0
+﻿# ===============================================
+# GemmaCLI Tool - persona.ps1 v1.1.0
 # Responsibility: Transforms Gemma into a specific historical or fictional persona.
 # ===============================================
 
@@ -71,6 +71,7 @@ Adhere strictly to this persona for the remainder of this conversation until ask
 
 $ToolMeta = @{
     Name        = "persona"
+    Icon        = "🎭"
     RendersToConsole = $true
     Category    = @("Help/Consultation", "Gaming/Entertainment")
     Behavior    = "Transforms the AI into a specific historical or fictional persona loaded from a database."
@@ -81,7 +82,7 @@ $ToolMeta = @{
     Example     = @"
 <tool_call>{ "name": "persona", "parameters": { "character": "shakespeare" } }</tool_call>
 "@
-    FormatLabel = { param($p) if ($p.character) { "Activating Persona: $($p.character)" } else { "Listing Personas" } }
+    FormatLabel = { param($p) if ($p.character) { "$($p.character)" } else { "list" } }
     Execute     = {
         param($params)
         Invoke-Persona -character $params.character

@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - coingecko.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - coingecko.ps1 v0.2.0
 # Responsibility: Fetch coin data
 # ===============================================
 
@@ -23,6 +23,7 @@ function Invoke-CoinGeckoTool {
 
 $ToolMeta = @{
     Name        = "coingecko"
+    Icon        = "🦎"
     RendersToConsole = $false
     Category    = @("Search and Discover")
     Behavior    = "Use this tool to get the current price of a cryptocurrency. It is the best tool for financial data."
@@ -31,7 +32,7 @@ $ToolMeta = @{
         coin = "string - the ID of the cryptocurrency (e.g., bitcoin, ethereum)"
     }
     Example     = "<tool_call>{ ""name"": ""coingecko"", ""parameters"": { ""coin"": ""bitcoin"" } }</tool_call>"
-    FormatLabel = { param($params) "coingecko -> $($params.coin)" }
+    FormatLabel = { param($params) "$($params.coin)" }
     Execute     = { param($params) Invoke-CoinGeckoTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'coingecko': Use this tool to retrieve the current price of a specific cryptocurrency in USD. This is useful for answering questions about crypto market values.

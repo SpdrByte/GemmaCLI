@@ -1,4 +1,4 @@
-# tools/calculator.ps1
+﻿# tools/calculator.ps1 v1.2.0
 # Responsibility: Comprehensive calculator for basic and complex math.
 # v1.1.0 - Added degree-mode trig functions (sind, cosd, tand, asind, acosd, atand).
 
@@ -146,6 +146,7 @@ function Invoke-CalculatorTool {
 
 $ToolMeta = @{
     Name        = "calculator"
+    Icon        = "🧮"
     RendersToConsole = $true
     Category    = @("Coding/Development", "Help/Consultation")
     Behavior    = "Use this tool to evaluate mathematical expressions, perform basic arithmetic, or compute complex equations. Support for trigonometry, logarithms, powers, and constants (pi, e) is included. Use this whenever a user asks for a calculation or when you need precise math results to solve a problem. It does not solve equations symbolically; you must provide the final numerical expression."
@@ -154,7 +155,7 @@ $ToolMeta = @{
         expression = "string - the math expression to evaluate (e.g., 'sin(pi/4) * sqrt(16) + 2^3')"
     }
     Example     = "<tool_call>{ ""name"": ""calculator"", ""parameters"": { ""expression"": ""sqrt(144) + log10(100)"" } }</tool_call>"
-    FormatLabel = { param($p) "🧮 calculator -> $($p.expression)" }
+    FormatLabel = { param($p) "$($p.expression)" }
     Execute     = {
         param($params)
         Invoke-CalculatorTool @params

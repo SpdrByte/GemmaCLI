@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - create_directory.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - create_directory.ps1 v0.2.0
 # Responsibility: Creates a new directory (and parents if needed) at the specified path.
 # ===============================================
 
@@ -26,7 +26,7 @@ function Invoke-CreateDirectoryTool {
         New-Item -Path $dir_path -ItemType Directory -Force -ErrorAction Stop | Out-Null
 
         # Verify creation succeeded and report full resolved path
-        $resolved = Resolve-Path $dir_path
+        $resolved = (Resolve-Path $dir_path).Path
         return "OK: Created directory '$resolved'"
 
     } catch {
@@ -38,6 +38,7 @@ function Invoke-CreateDirectoryTool {
 
 $ToolMeta = @{
     Name        = "create_directory"
+    Icon        = "📁"
     RendersToConsole = $false
     Category    = @("System Administration")
     Behavior    = "Use this tool to create a new directory. This is useful for organizing files or preparing for a new project."
@@ -45,8 +46,9 @@ $ToolMeta = @{
     Parameters  = @{
         dir_path = "string - absolute or relative Windows path to the directory to create, e.g. '.\newfolder' or 'C:\Users\kevin\Documents\project'"
     }
-    Example     = "<tool_call>{ ""name"": ""📁 Create_directory"", ""parameters"": { ""dir_path"": ""./new_folder"" } }</tool_call>"
-    FormatLabel = { param($params) "create_directory -> $($params.dir_path)" }
+    Example     = '<tool_call>{ "name": "create_directory", "parameters": { "dir_path": "./new_folder" } }</tool_call>'
+    FormatLabel = { param($params) "$($params.dir_path)" }
+
     Execute     = {
         param($params)
         Invoke-CreateDirectoryTool -dir_path $params.dir_path

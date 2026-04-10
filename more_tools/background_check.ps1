@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - background_check.ps1 v0.3.1
+# GemmaCLI Tool - background_check.ps1 v0.4.0
 # Responsibility: Comprehensive background screening tool.
 #                 Sources: Registry, State Courts, FBI Wanted.
 #                 Built on working v2.3.0 PSCustomObject foundation.
@@ -602,6 +602,7 @@ function Invoke-BackgroundCheck {
 
 $ToolMeta = @{
     Name             = "background_check"
+    Icon             = "🕵️"
     RendersToConsole = $true
     Category    = @("Search and Discover")
     Behavior         = "Unified background check tool. Searches Sex Offender Registry, State Courts, and FBI Wanted simultaneously. Call ONLY after gathering firstName, lastName, and ideally state and DOB from the user."
@@ -624,7 +625,7 @@ $ToolMeta = @{
     FormatLabel      = { param($p)
         $off = if ($p.offset) { " [offset:$($p.offset)]" } else { "" }
         $src = if ($p.action -and $p.action -ne "full") { " [$($p.action)]" } else { "" }
-        "background_check  $([string][char]0x2192)  $($p.firstName) $($p.lastName)$src$off"
+        "$($p.firstName) $($p.lastName)$src$off"
     }
     Execute          = {
         param($params)

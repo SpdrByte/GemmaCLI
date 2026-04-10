@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - project.ps1 v0.1.0
+﻿# ===============================================
+# GemmaCLI Tool - project.ps1 v0.2.0
 # Responsibility: Save, load, or list project context entries stored in
 #                 a per-project hashtable in AppData. Designed to give
 #                 Gemma immediate orientation at the start of a session
@@ -150,6 +150,7 @@ PROJECT CONTEXT LOADED: $($p.name)
 
 $ToolMeta = @{
     Name             = "project"
+    Icon             = "📁"
     RendersToConsole = $false
     Category         = @("Memory Management", "System Administration")
     Behavior         = "Use this tool to save, load, or list project context entries. At the start of a session, if the user mentions a project name or you are in an unfamiliar working directory, proactively call 'load' to orient yourself. Call 'save' when the user describes or updates a project so you can recall it in future sessions."
@@ -166,10 +167,10 @@ $ToolMeta = @{
     FormatLabel      = {
         param($p)
         switch ($p.action) {
-            "save" { "📁 project > save > $($p.name)" }
-            "load" { "📂 project > load > $($p.name)" }
-            "list" { "📋 project > list" }
-            default { "📁 project > $($p.action)" }
+            "save" { "save > $($p.name)" }
+            "load" { "load > $($p.name)" }
+            "list" { "list" }
+            default { "$($p.action)" }
         }
     }
     Execute          = { param($params) Invoke-ProjectTool @params }

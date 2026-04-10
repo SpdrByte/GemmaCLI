@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - diffwatcher.ps1 v0.1.0
+﻿# ===============================================
+# GemmaCLI Tool - diffwatcher.ps1 v0.2.0
 # Responsibility: Watches a file for external changes using FileSystemWatcher,
 #                 then returns a formatted unified diff for analysis.
 #                 Primary use: auditing edits made by other agents or collaborators.
@@ -130,6 +130,7 @@ function Invoke-DiffWatcherTool {
 
 $ToolMeta = @{
     Name             = "diffwatcher"
+    Icon             = "👁️"
     RendersToConsole = $false
     Category         = @("Memory Management", "Coding/Development", "System Administration")
     Behavior         = "Use this tool to monitor a file for edits made by another agent, a collaborator, or the user. It snapshots the file contents, waits for the file to change, then returns a formatted line-by-line diff for your analysis."
@@ -139,7 +140,7 @@ $ToolMeta = @{
         timeout_seconds = "string - optional. Seconds to wait for a change before giving up. Default: 60. Recommended max: 300."
     }
     Example          = "<tool_call>{ ""name"": ""diffwatcher"", ""parameters"": { ""file_path"": ""src/player.ts"", ""timeout_seconds"": ""120"" } }</tool_call>"
-    FormatLabel      = { param($p) "👁️ diffwatcher -> $($p.file_path)" }
+    FormatLabel      = { param($p) "$(Split-Path $p.file_path -Leaf)" }
     Execute          = { param($params) Invoke-DiffWatcherTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'diffwatcher':

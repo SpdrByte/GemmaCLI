@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - randomname.ps1 v0.3.0
+﻿# ===============================================
+# GemmaCLI Tool - randomname.ps1 v0.4.0
 # Responsibility: Generates a random name with specified criteria.
 # ===============================================
 
@@ -44,6 +44,7 @@ function Invoke-RandomNameTool {
 
 $ToolMeta = @{
     Name        = "randomname"
+    Icon        = "🎲"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
     Behavior    = "Generates a random name based on specified sex and style. Use when the user asks for a random name, a character name, or a name suggestion."
@@ -53,7 +54,7 @@ $ToolMeta = @{
         style = "string - 'modern', 'sci-fi', or 'fantasy'"
     }
     Example     = "<tool_call>{ ""name"": ""randomname"", ""parameters"": { ""sex"": ""Male"", ""style"": ""modern"" } }</tool_call>"
-    FormatLabel = { param($params) "🎲 RandomName -> Sex: $($params.sex), Style: $($params.style)" }
+    FormatLabel = { param($params) "Sex: $($params.sex), Style: $($params.style)" }
     Execute     = {
         param($params)
         Invoke-RandomNameTool -sex $params.sex -style $params.style

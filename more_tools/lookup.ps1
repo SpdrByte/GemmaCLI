@@ -1,4 +1,4 @@
-# GemmaCLI Tool - lookup.ps1 v0.1.2
+﻿# GemmaCLI Tool - lookup.ps1 v0.2.0
 # Responsibility: Query the DuckDuckGo Instant Answer API for current real-world
 # facts that may have changed since the model's training cutoff.
 # Best used for: software versions, political leaders, current record holders,
@@ -96,6 +96,7 @@ function Invoke-LookupTool {
 
 $ToolMeta = @{
     Name        = "lookup"
+    Icon        = "📖"
     RendersToConsole = $false
     Category    = @("Search and Discover")
     Behavior    = "Use this tool for quick lookups of factual, time-sensitive information. It's best for questions about current events, versions, or leaders. For in-depth research, prefer `brave_search`."
@@ -104,7 +105,7 @@ $ToolMeta = @{
         query = "string - the factual question to look up, e.g. 'latest Python version' or 'current Prime Minister of UK'"
     }
     Example     = "<tool_call>{ ""name"": ""📖 Lookup"", ""parameters"": { ""query"": ""latest Python version"" } }</tool_call>"
-    FormatLabel = { param($params) "lookup -> $($params.query)" }
+    FormatLabel = { param($params) "$($params.query)" }
     Execute     = {
         param($params)
         Invoke-LookupTool -query $params.query

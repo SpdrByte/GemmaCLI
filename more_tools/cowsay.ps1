@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - cowsay.ps1 v0.1.0
+﻿# ===============================================
+# GemmaCLI Tool - cowsay.ps1 v0.2.0
 # Responsibility: Wraps text in an ASCII cow speech bubble.
 # ===============================================
 
@@ -64,6 +64,7 @@ function Invoke-CowsayTool {
 
 $ToolMeta = @{
     Name        = "cowsay"
+    Icon        = "🐮"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
     Behavior    = "Use this tool for entertainment or when explicitly asked. Wraps text in an ASCII cow."
@@ -73,7 +74,7 @@ $ToolMeta = @{
         max_width = "int - maximum width of the speech bubble (default 40)"
     }
     Example     = "<tool_call>{ ""name"": ""cowsay"", ""parameters"": { ""text"": ""Moo! Have a great day!"" } }</tool_call>"
-    FormatLabel = { param($params) "🐮 Cowsay -> $($params.text.Substring(0, [math]::Min(20, $params.text.Length)))" }
+    FormatLabel = { param($params) "$($params.text.Substring(0, [math]::Min(20, $params.text.Length)))" }
     Execute     = { param($params) Invoke-CowsayTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'cowsay': This tool is entirely cosmetic and should be used if the user asks for a joke, wants something "fun", mentions being bored, or specifically requests a cowsay message.

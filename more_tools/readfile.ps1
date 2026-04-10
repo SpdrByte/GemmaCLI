@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - readfile.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - readfile.ps1 v0.3.0
 # Responsibility: Function to read file content + Metadata for self-registration.
 # ===============================================
 
@@ -19,6 +19,7 @@ function Invoke-ReadFileTool {
 # Standard metadata block for registration
 $ToolMeta = @{
     Name        = "readfile"
+    Icon        = "📖"
     RendersToConsole = $false
     Category    = @("System Administration", "Coding/Development", "Memory Management")
     Behavior    = "Use this tool to read the contents of a file. Before using, it is good practice to verify the file exists using the `searchdir` tool."
@@ -28,7 +29,7 @@ $ToolMeta = @{
         file_path = "string - absolute or relative path to a file."
     }
     Example     = "<tool_call>{ ""name"": ""readfile"", ""parameters"": { ""file_path"": ""GemmaCLI_043.ps1"" } }</tool_call>"
-    FormatLabel = { param($params) "readfile -> $($params.file_path)" }
+    FormatLabel = { param($params) "$($params.file_path)" }
     Execute     = { param($params) Invoke-ReadFileTool -file_path $params.file_path }
     ToolUseGuidanceMajor = @"
         - When to use 'readfile': Use this tool to inspect the textual content of any local file. It is essential for understanding code, configuration, logs, or any other text-based data within the project.

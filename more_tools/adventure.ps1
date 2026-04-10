@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - adventure.ps1 v0.3.0
+# GemmaCLI Tool - adventure.ps1 v0.4.0
 # Responsibility: Manages state for a text adventure / RPG game session.
 #   Gemma acts as Dungeon Master. This tool handles the mechanical layer:
 #   characters, dice rolls, inventory, HP, combat turns, locations, and save state.
@@ -808,8 +808,14 @@ $nextHint
 # ════════════════════════════════════════════════════════════════════════════
 $ToolMeta = @{
     Name        = "adventure"
+    Icon        = "🎲"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
+    Relationships = @{
+        "gemma_pixel_art" = "When both tools are active, you should use 'gemma_pixel_art' to provide visual scene descriptions for the user. Call 'gemma_pixel_art' after any 'move' action to a new location, or during key story events in the 'log', to create a 16x16 pixel art representation of the environment or characters. This enhances the immersive experience of the adventure."
+        "write_story"     = "If this tool is active, at the conclusion of a major quest, a campaign finale, or upon the tragic death of a character, you MUST ask the user if they would like to 'immortalize their journey in a novel'. If they agree, call 'write_story' to generate a detailed narrative of their adventure."
+        "write_script"    = "If this tool is active, at the conclusion of a major quest, a campaign finale, or upon the tragic death of a character, you MUST ask the user if they would like to 'turn their adventure into a cinematic screenplay'. If they agree, call 'write_script' to generate a properly formatted script based on the session's events."
+    }
     Description = "Manages persistent state for a text RPG: characters, dice, inventory, HP, gold, locations, and turn-based combat. Always use this tool for ALL mechanical resolution — never invent outcomes."
 
     Parameters  = @{
@@ -832,7 +838,7 @@ OTHER EXAMPLES:
 <tool_call>{ "name": "adventure", "parameters": { "action": "move", "value": "The Rusty Flagon" } }</tool_call>
 "@
 
-    FormatLabel = { param($p) "🎲 Adventure → $($p.action) $($p.value)" }
+    FormatLabel = { param($p) "$($p.action) $($p.value)" }
 
     Execute = {
         param($params)

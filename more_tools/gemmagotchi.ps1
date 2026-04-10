@@ -1,4 +1,4 @@
-# tools/gemmagotchi.ps1 v0.4.0
+﻿# tools/gemmagotchi.ps1 v0.5.0
 # Responsibility: Desktop Tamagotchi companion rendered entirely in the Gemma CLI
 #                 console using ANSI/ASCII art. No child processes, no WPF, no
 #                 secondary windows. State persists in gemmagotchi.json.
@@ -220,6 +220,7 @@ function Invoke-GemmagotchiTool {
 # ── Self-registration ────────────────────────────────────────────────────────
 $ToolMeta = @{
     Name             = "gemmagotchi"
+    Icon             = "👾"
     RendersToConsole = $true
     Category         = @("Companion", "Fun")
     Behavior         = "Interact with Gemmagotchi, your CLI companion. Call 'status' to check on it and redraw its face. Call 'feed' when it is hungry. The face is drawn in the console — you only receive a short status string. React naturally to the mood reported."

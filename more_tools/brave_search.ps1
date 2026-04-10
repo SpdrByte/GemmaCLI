@@ -1,19 +1,20 @@
-# ===============================================
-# GemmaCLI Tool - brave_search.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - brave_search.ps1 v0.3.0
 # Responsibility: Web search using Brave search engine
 # ===============================================
 
 function Invoke-BraveSearchTool {
     param([string]$query)
 
-    if (-not $env:BRAVE_API_KEY) {
-        return "ERROR: Brave API key not found in environment variable `$env:BRAVE_API_KEY`."
+    $apiKey = Get-StoredKey -keyName "brave_search"
+    if (-not $apiKey) {
+        return "ERROR: Brave API key not found. Please ensure it is configured in the CLI."
     }
 
     try {
         $headers = @{
             "Accept" = "application/json"
-            "X-Subscription-Token" = $env:BRAVE_API_KEY
+            "X-Subscription-Token" = $apiKey
         }
         $encodedQuery = [uri]::EscapeDataString($query)
         $uri = "https://api.search.brave.com/res/v1/web/search?q=$encodedQuery"
@@ -37,7 +38,10 @@ function Invoke-BraveSearchTool {
 
 $ToolMeta = @{
     Name        = "brave_search"
+    Icon        = "🦁"
     RendersToConsole = $false
+    RequiresKey = $true
+    KeyUrl      = "https://search.brave.com/api"
     Category    = @("Search and Discover")
     Behavior    = "Use this tool for in-depth web research. It provides a list of search results with summaries."
     Description = "A privacy-first web search using the Brave Search API."
@@ -45,7 +49,7 @@ $ToolMeta = @{
         query = "string - the search query"
     }
     Example     = "<tool_call>{ ""name"": ""brave_search"", ""parameters"": { ""query"": ""latest features in PowerShell 7"" } }</tool_call>"
-    FormatLabel = { param($params) "🦁 Brave Search -> $($params.query)" }
+    FormatLabel = { param($params) "$($params.query)" }
     Execute     = { param($params) Invoke-BraveSearchTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'brave_search': Use this tool for general web searches, especially when current information or external knowledge is required. It provides a list of search results including titles, URLs, and descriptions.

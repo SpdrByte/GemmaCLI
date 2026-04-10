@@ -1,4 +1,4 @@
-# tools/insulin_calc.ps1
+﻿# tools/insulin_calc.ps1 v1.1.0
 # Responsibility: High-accuracy insulin dose calculator for diabetics.
 #                 Uses a verified nutritional database and requires double-entry
 #                 for high-risk parameters. Triggers audio warnings.
@@ -126,6 +126,7 @@ function Invoke-InsulinCalcTool {
 
 $ToolMeta = @{
     Name             = "insulin_calc"
+    Icon             = "💉"
     RendersToConsole = $true
     Category         = @("Health", "Utility")
     Behavior         = "Calculate insulin doses for food. MANDATORY: You MUST ask the user for their personalized Insulin-to-Carb Ratio (ICR) before using this tool. Never assume a default ratio. 1. If you know the food name, provide 'food_item' and 'amount' - the tool will look up verified counts. 2. If the food is not common or you have a specific count from a label, provide 'carbs_manual_1' and 'carbs_manual_2' (MUST MATCH). Do NOT hallucinate carb counts; if you don't know the food and the user didn't provide a count, ask for clarification instead of guessing."
@@ -139,8 +140,8 @@ $ToolMeta = @{
     }
     Example          = "<tool_call>{ ""name"": ""insulin_calc"", ""parameters"": { ""food_item"": ""pepperoni pizza"", ""amount"": 2 } }</tool_call>"
     FormatLabel      = { param($p)
-        if ($p.carbs_manual_1 -gt 0) { "💉 insulin_calc -> $($p.carbs_manual_1)g carbs (Manual)" }
-        else { "💉 insulin_calc -> lookup '$($p.food_item)' ($($p.amount))" }
+        if ($p.carbs_manual_1 -gt 0) { "$($p.carbs_manual_1)g carbs (Manual)" }
+        else { "lookup '$($p.food_item)' ($($p.amount))" }
     }
     Execute          = { param($params) Invoke-InsulinCalcTool @params }
 }

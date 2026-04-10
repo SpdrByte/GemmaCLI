@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - write_story.ps1 v0.2.0
+﻿# ===============================================
+# GemmaCLI Tool - write_story.ps1 v0.3.0
 # Responsibility: Sends conversation history to Gemini Flash 2.5 Lite
 #                 and writes the generated story to a .txt file.
 # ===============================================
@@ -23,31 +23,65 @@ function Invoke-WriteStoryTool {
         $counter++
     }
 
-    # --- Build conversation summary from history ---
-   $historySummary = ""
-   if ($script:history -and $script:history.Count -gt 0) {
-       $lines = foreach ($entry in $script:history) {
-           $role = $entry.role
-           $text = ($entry.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
-           $text = $text.Replace([char]0x201C, "'").Replace([char]0x201D, "'").Replace([char]0x2018, "'").Replace([char]0x2019, "'")
-           $text = $text.Replace('\\n', ' ').Replace('\\r', ' ').Replace('\\t', ' ')
-           if ($text -and $text.Length -gt 0) {
-               "[$($role.ToUpper())]: $text"
-           }
-       }
-       $historySummary = $lines -join "`n"
-   }
+    # --- Build conversation summary from history (SCRUBBED) ---
+    $historySummary = ""
+    if ($script:history -and $script:history.Count -gt 0) {
+        $lines = foreach ($entry in $script:history) {
+            $role = $entry.role
+            $text = ($entry.parts | Where-Object { $_.text } | ForEach-Object { $_.text }) -join " "
+            
+            # 1. Strip Technical Artifacts (Regex)
+            # Remove <tool_call> blocks
+            $text = $text -replace '<tool_call>.*?</tool_call>', ''
+            
+            # Robust JSON scrubbing (multi-pass to handle nested structures)
+            $oldLen = 0
+            while ($text.Length -ne $oldLen) {
+                $oldLen = $text.Length
+                $text = $text -replace '\{[^{}]*\}', ''
+            }
+            
+            # Remove CONSOLE and SYSTEM prefixes
+            $text = $text -replace 'CONSOLE::.*?::END_CONSOLE::', ''
+            $text = $text -replace '(?m)^\[SYSTEM\].*$', ''
+            $text = $text -replace '(?m)^\[DEBUG\].*$', ''
+            
+            # 2. Character normalization
+            $text = $text.Replace([char]0x201C, "'").Replace([char]0x201D, "'").Replace([char]0x2018, "'").Replace([char]0x2019, "'")
+            $text = $text.Replace('\\n', ' ').Replace('\\r', ' ').Replace('\\t', ' ')
+            
+            # 3. Clean up extra whitespace
+            $text = $text.Trim()
+            
+            if ($text -and $text.Length -gt 10) { # Skip very short/empty lines after scrubbing
+                "[$($role.ToUpper())]: $text"
+            }
+        }
+        $historySummary = $lines -join "`n"
+    }
+
+    # --- Guard: Empty History ---
+    if ([string]::IsNullOrWhiteSpace($historySummary)) {
+        return "ERROR: No usable conversation history found (everything was scrubbed or the session is empty). Please interact more before generating a story."
+    }
 
     # --- Build the prompt ---
     $storyPrompt = @"
-You are a creative fiction writer. Based on the conversation history below, write an engaging, well-structured novel. The story should capture the themes, characters, or ideas discussed in the conversation and present them in a compelling narrative form.
+You are a master creative fiction writer. Your goal is to write a detailed, immersive, and well-structured novel based on the provided conversation history.
 
-$(if ($topic) { "Additional focus for the story: $topic`n" })
---- CONVERSATION HISTORY ---
+CRITICAL INSTRUCTIONS:
+1. STRIP ALL METADATA: The history contains technical metadata, tool calls (e.g., <tool_call>), JSON objects, and mechanical game logs (e.g., [SYSTEM] TOOL RESULT, HP updates, dice rolls). You MUST ignore these mechanical details entirely.
+2. FOCUS ON NARRATIVE: Capture the atmosphere, dialogue, character motivations, and emotional stakes discussed or implied in the conversation.
+3. DETAILED & EXPANSIVE: Do not just summarize. Write a rich narrative with vivid descriptions.
+4. STRUCTURE: Give the story a compelling title on the first line. Organize the content into multiple clearly labeled chapters (e.g., CHAPTER 1: THE AWAKENING).
+
+$(if ($topic) { "ADDITIONAL FOCUS: $topic`n" })
+
+--- CONVERSATION HISTORY (SCRUBBED) ---
 $historySummary
 --- END OF HISTORY ---
 
-Write the complete story now. Give it a title on the first line, then a blank line, then the chapter title followed by chapter body. Make as many chapters as possible with context given.
+Write the complete, immersive story now.
 "@
 
     # --- API Call ---
@@ -64,7 +98,7 @@ Write the complete story now. Give it a title on the first line, then a blank li
                 }
             )
             generationConfig = @{
-                maxOutputTokens = 4096
+                maxOutputTokens = 16384
                 temperature     = 0.9
                 topP            = 0.95
             }
@@ -91,11 +125,24 @@ Write the complete story now. Give it a title on the first line, then a blank li
 
      } catch {
         $errorBody = ""
-        try { $errorBody = $_.Exception.Response.GetResponseStream() | ForEach-Object { (New-Object System.IO.StreamReader $_).ReadToEnd() } } catch {}
+        try {
+            $response = $_.Exception.Response
+            if ($response) {
+                $stream = $null
+                $reader = $null
+                try {
+                    $stream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader $stream
+                    $errorBody = $reader.ReadToEnd()
+                } finally {
+                    if ($reader) { $reader.Close(); $reader.Dispose() }
+                    if ($stream) { $stream.Close(); $stream.Dispose() }
+                }
+            }
+        } catch {}
         if (-not $errorBody) { $errorBody = $_.ErrorDetails.Message }
         if (-not $errorBody) { $errorBody = $_.Exception.Message }
         return "ERROR: Gemini API call failed.`nStatus: $($_.Exception.Response.StatusCode)`nBody: $errorBody`nPrompt length: $($storyPrompt.Length) chars`nJSON length: $($jsonBody.Length) chars"
-        Set-Content -Path "C:\Users\kevin\Documents\AI\debug_json.txt" -Value $jsonBody -Encoding UTF8
     }
 }
 
@@ -103,6 +150,7 @@ Write the complete story now. Give it a title on the first line, then a blank li
 
 $ToolMeta = @{
     Name        = "write_story"
+    Icon        = "📖"
     RendersToConsole = $false
     Category    = @("Digital Media Production", "Help/Consultation")
     Behavior    = "Generates a creative short story based on the current conversation history using Gemini Flash 2.5 Lite, then saves it as a .txt file in the current working directory."
@@ -111,7 +159,7 @@ $ToolMeta = @{
         topic = "string - (optional) An additional focus, theme, or instruction to guide the story. Leave empty to let the model derive everything from context."
     }
     Example     = "<tool_call>{ ""name"": ""write_story"", ""parameters"": { ""topic"": ""focus on the mystery elements"" } }</tool_call>"
-    FormatLabel = { param($p) "📖 WriteStory$(if ($p.topic) { " -> $($p.topic)" } else { '' })" }
+    FormatLabel = { param($p) "$(if ($p.topic) { $p.topic } else { '' })" }
     Execute     = {
         param($params)
         $topic = if ($params.topic) { $params.topic } else { "" }

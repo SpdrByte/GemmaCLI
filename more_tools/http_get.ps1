@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - http_get.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - http_get.ps1 v0.2.0
 # Responsibility: Get URL
 # ===============================================
 
@@ -27,6 +27,7 @@ function Invoke-HttpGetTool {
 
 $ToolMeta = @{
     Name        = "http_get"
+    Icon        = "🌐"
     RendersToConsole = $false
     Category    = @("Search and Discover", "Physical Computing")
     Behavior    = "Use this tool to make a simple GET request to a URL and retrieve the raw content. For reading web pages, `browse_web` is preferred as it returns cleaner, LLM-ready markdown."
@@ -35,7 +36,7 @@ $ToolMeta = @{
         url = "string - the URL to fetch"
     }
     Example     = "<tool_call>{ ""name"": ""http_get"", ""parameters"": { ""url"": ""https://api.github.com/users/powershell"" } }</tool_call>"
-    FormatLabel = { param($params) "🌐 http_get -> $($params.url)" }
+    FormatLabel = { param($params) "$($params.url)" }
     Execute     = { param($params) Invoke-HttpGetTool @params }
     ToolUseGuidanceMajor = @"
         - When to use 'http_get': Use this tool to perform a simple HTTP GET request to a URL and retrieve its raw content. It's suitable for APIs or specific files, but for general web pages, `browse_web` is usually preferred for cleaner, LLM-ready markdown.

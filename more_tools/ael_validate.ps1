@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - ael_validate.ps1 v1.1.0
+﻿# ===============================================
+# GemmaCLI Tool - ael_validate.ps1 v1.2.0
 # Responsibility: Parses and validates AEL (ASCII Electronics Language) v0.3
 #                 circuits. Returns structured JSON errors for LLM self-correction.
 #                 Board-agnostic — works with any board definition.
@@ -622,8 +622,13 @@ function Render-ValidationResult {
 
 $ToolMeta = @{
     Name        = "ael_validate"
+    Icon        = "🛠️"
     RendersToConsole = $false
     Category    = @("Physical Computing")
+    Relationships = @{
+        "arduino_boards" = "When creating circuits for Arduino/ESP boards, always use 'ael_validate' to verify your AEL code before presenting it. If validation passes, you should then call 'arduino_boards' action='diagram' with the 'ael' parameter to provide the user with a visual wiring guide."
+        "esp_boards"     = "When creating circuits for ESP32/Espressif boards, always use 'ael_validate' to verify your AEL code before presenting it. If validation passes, you should then call 'esp_boards' action='diagram' with the 'ael' parameter to provide the user with a visual wiring guide."
+    }
     Behavior    = "Validates AEL (ASCII Electronics Language) v0.3 circuit definitions. Parses BOARD, COMP, WIRE, POWER, BUS, and NET statements and returns structured JSON errors for self-correction. Board-agnostic — use with any board in the database."
     Description = "Parses and validates an AEL circuit string. Returns JSON with errors and warnings including line numbers, error codes, and fix suggestions."
     Parameters  = @{
@@ -634,7 +639,7 @@ $ToolMeta = @{
 "@
     FormatLabel = { param($p)
         $lines = ($p.ael -split "`n").Count
-        "AEL Validate  $ARR  $lines line(s)"
+        "$lines line(s)"
     }
     Execute     = {
         param($params)
@@ -649,6 +654,8 @@ $ToolMeta = @{
         # Auto-render diagram if circuit is valid
         $parsed = $json | ConvertFrom-Json
         if ($parsed.valid) {
+            # Note: Relationship logic commented out — ael_render.ps1 does not exist.
+            <#
             try {
                 # Load renderer from sibling tool file
                 $renderFile = Join-Path $scriptDir "tools/ael_render.ps1"
@@ -661,6 +668,7 @@ $ToolMeta = @{
             } catch {
                 # Renderer unavailable — validation result still returned cleanly
             }
+            #>
         }
 
         return "CONSOLE::AEL Validation complete::END_CONSOLE::$json"

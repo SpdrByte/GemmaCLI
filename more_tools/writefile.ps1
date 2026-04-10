@@ -1,4 +1,4 @@
-# GemmaCLI Tool - writefile.ps1 v0.2.1
+﻿# GemmaCLI Tool - writefile.ps1 v0.3.0
 # Responsibility: Writes content to a file. Includes overwrite protection.
 # ===============================================
 
@@ -52,6 +52,7 @@ function Invoke-WriteFileTool {
 
 $ToolMeta = @{
     Name        = "writefile"
+    Icon        = "📄"
     RendersToConsole = $false
     Category    = @("System Administration", "Coding/Development")
     Behavior    = "Use this tool to write content to a file. It has overwrite protection. If the file exists, the tool will fail and tell you to ask the user for permission. Once permission is granted, set 'overwrite' to true."
@@ -65,7 +66,7 @@ $ToolMeta = @{
     Example     = "<tool_call>{ ""name"": ""writefile"", ""parameters"": { ""file_path"": ""hello.txt"", ""content"": ""Hello!"", ""overwrite"": false } }</tool_call>"
     FormatLabel = { param($params) 
         $warn = if ($params.overwrite) { " (OVERWRITE)" } else { "" }
-        "📄Writefile -> $($params.file_path)$warn" 
+        "$($params.file_path)$warn" 
     }
     Execute     = {
         param($params)

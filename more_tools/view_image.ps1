@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - view_image.ps1 v0.1.1
+﻿# ===============================================
+# GemmaCLI Tool - view_image.ps1 v0.2.0
 # Responsibility: Encodes an image to base64 and returns it in a format
 # that can be injected into the LLM's multimodal history
 # ===============================================
@@ -38,6 +38,7 @@ function Invoke-ViewImageTool {
 
 $ToolMeta = @{
     Name        = "view_image"
+    Icon        = "🖼️"
     RendersToConsole = $false
     Category    = @("Digital Media Production")
     Behavior    = "Use this tool to analyze an image provided by the user. It is the only way to 'see' an image."
@@ -47,7 +48,7 @@ $ToolMeta = @{
         prompt    = "string - the user's question or instruction about the image"
     }
     Example     = "<tool_call>{ ""name"": ""view_image"", ""parameters"": { ""file_path"": ""./images/chart.png"", ""prompt"": ""What does this chart show?"" } }</tool_call>"
-    FormatLabel = { param($params) "🖼️ View Image -> $($params.file_path)" }
+    FormatLabel = { param($params) "$($params.file_path)" }
     Execute     = { param($params) Invoke-ViewImageTool -file_path $params.file_path -prompt $params.prompt }
     ToolUseGuidanceMajor = @"
         - When to use 'view_image': Use this tool to enable multimodal analysis of a local image file (PNG, JPG, GIF, WEBP). This is the only way for the LLM to 'see' and interpret image content. Use it when the user asks questions or provides instructions related to an image.

@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - blackjack.ps1 v0.1.2
+﻿# ===============================================
+# GemmaCLI Tool - blackjack.ps1 v0.2.0
 # Responsibility: Manages persistent money balance for a blackjack game.
 #   Grok/Gemma acts as the dealer and handles card logic. This tool ONLY tracks money.
 # ===============================================
@@ -69,6 +69,7 @@ function Invoke-BlackjackTool {
 # ── Self-registration block ──────────────────────────────────────────────────
 $ToolMeta = @{
     Name        = "blackjack"
+    Icon        = "🃏"
     RendersToConsole = $false
     Category    = @("Gaming/Entertainment")
     Behavior    = @"
@@ -109,7 +110,7 @@ Rules:
 <tool_call>{ `"name`": `"blackjack`", `"parameters`": { `"action`": `"status`" } }</tool_call>
 <tool_call>{ `"name`": `"blackjack`", `"parameters`": { `"action`": `"update`", `"value`": `"15`" } }</tool_call>
 "@
-    FormatLabel = { param($p) "🃏 Blackjack -> $($p.action) $($p.value)" }
+    FormatLabel = { param($p) "$($p.action) $($p.value)" }
     Execute     = { param($params) Invoke-BlackjackTool @params }
     ToolUseGuidanceMajor = @"
         - **DEALER MUST STAND 17+:** Loop: while dealer_total < 17: hit. BREAK at >=17. NO HITS on 18!

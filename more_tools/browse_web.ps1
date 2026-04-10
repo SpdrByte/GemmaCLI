@@ -1,4 +1,4 @@
-# GemmaCLI Tool - browse_web.ps1 v0.1.2
+﻿# GemmaCLI Tool - browse_web.ps1 v0.2.0
 # Responsibility: Fetches clean, LLM-ready markdown content from any URL using
 # Jina Reader (r.jina.ai), which handles JavaScript, paywalls, and bot protection.
 # No API key required for basic use.
@@ -82,6 +82,7 @@ function Invoke-BrowseWebTool {
 
 $ToolMeta = @{
     Name        = "browse_web"
+    Icon        = "🌐"
     RendersToConsole = $false
     Category    = @("Search and Discover")
     Behavior    = "Use this tool to access content from a web URL. If the user provides a URL, use this tool to read its content. It is a good first step for research tasks."
@@ -90,7 +91,7 @@ $ToolMeta = @{
         url = "string - the full URL to browse, e.g. 'https://example.com/article'"
     }
     Example     = "<tool_call>{ ""name"": ""browse_web"", ""parameters"": { ""url"": ""https://en.wikipedia.org/wiki/PowerShell"" } }</tool_call>"
-    FormatLabel = { param($params) "🌐 Browse Web -> $($params.url)" }
+    FormatLabel = { param($params) "$($params.url)" }
     Execute     = {
         param($params)
         Invoke-BrowseWebTool -url $params.url

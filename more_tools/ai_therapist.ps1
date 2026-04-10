@@ -1,5 +1,5 @@
-# ===============================================
-# GemmaCLI Tool - ai_therapist.ps1 v1.0.0
+﻿# ===============================================
+# GemmaCLI Tool - ai_therapist.ps1 v1.1.0
 # Responsibility: Transforms Gemma into a compassionate AI therapist.
 # ===============================================
 
@@ -53,6 +53,7 @@ Acknowledge that you have adopted this role and ask the user how they are feelin
 
 $ToolMeta = @{
     Name        = "ai_therapist"
+    Icon        = "🛋️"
     RendersToConsole = $true
     Category    = @("Help/Consultation")
     Behavior    = "Transforms the AI into a compassionate mental health counselor with strict crisis protocols."
@@ -61,7 +62,7 @@ $ToolMeta = @{
     Example     = @"
 <tool_call>{ "name": "ai_therapist", "parameters": {} }</tool_call>
 "@
-    FormatLabel = { param($p) "Activating AI Therapist Mode" }
+    FormatLabel = { param($p) "Activating Mode" }
     Execute     = {
         param($params)
         Invoke-AiTherapist
