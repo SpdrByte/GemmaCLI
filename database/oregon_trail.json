@@ -1,0 +1,44 @@
+{
+    "config":  {
+                   "profession":  "Banker",
+                   "pace":  "Strenuous",
+                   "rations":  "Meager"
+               },
+    "meta":  {
+                 "game_over_reason":  "",
+                 "week_number":  16,
+                 "is_game_over":  false
+             },
+    "party":  {
+                  "miles_traveled":  1014,
+                  "spare_parts":  8,
+                  "bullets":  24,
+                  "food":  4089,
+                  "clothing":  25,
+                  "health":  140,
+                  "members":  [
+                                  {
+                                      "name":  "ryan",
+                                      "status":  "Healthy"
+                                  },
+                                  {
+                                      "name":  "harlan",
+                                      "status":  "Healthy"
+                                  },
+                                  {
+                                      "name":  "leah",
+                                      "status":  "Healthy"
+                                  },
+                                  {
+                                      "name":  "millie",
+                                      "status":  "Healthy"
+                                  },
+                                  {
+                                      "name":  "christa",
+                                      "status":  "Healthy"
+                                  }
+                              ],
+                  "money":  0,
+                  "oxen":  8
+              }
+}
