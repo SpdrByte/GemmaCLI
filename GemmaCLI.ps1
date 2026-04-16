@@ -378,7 +378,7 @@ $helpLines = @(
     "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.8.0 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.8.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -644,6 +644,9 @@ while ($true) {
         }
 
         $toolLines = Get-ToolsSummary -ScriptRoot $scriptDir -Mode $mode
+        $wikiPath = Join-Path $scriptDir "TOOLS.html"
+        $toolLines += ""
+        $toolLines += "  $BUL  Tool Docs: $(Convert-ToHyperlink -Text $wikiPath)"
         Draw-Box $toolLines -Title $title -Width 90 -Color Green
         continue
     }
@@ -997,7 +1000,23 @@ while ($true) {
         # Update metadata for next status bar draw
         $usage = $resp.usageMetadata
         $fin   = $resp.candidates[0].finishReason
-        $script:lastStatus = @{ prompt = $usage.promptTokenCount; candidate = $usage.candidatesTokenCount; total = $usage.totalTokenCount; finish = $fin }
+
+        # Handle plural/singular inconsistency and missing candidate data in Google's API schema
+        $cCount = if ($usage.candidatesTokenCount) { $usage.candidatesTokenCount } 
+                  elseif ($usage.candidateTokenCount) { $usage.candidateTokenCount }
+                  elseif ($usage.totalTokenCount -and $usage.promptTokenCount) { 
+                      [math]::Max(0, [int]$usage.totalTokenCount - [int]$usage.promptTokenCount) 
+                  }
+                  else { 0 }
+
+        $tCount = if ($usage.totalTokenCount -and $usage.totalTokenCount -gt 0) { $usage.totalTokenCount } 
+                  else { ([int]$usage.promptTokenCount + [int]$cCount) }
+
+        if ($script:debugMode) {
+            Write-Host " [Meta] candidatesTokenCount=$($usage.candidatesTokenCount) candidateTokenCount=$($usage.candidateTokenCount) total=$($usage.totalTokenCount) -> resolved: cand=$cCount total=$tCount" -ForegroundColor DarkYellow
+        }
+
+        $script:lastStatus = @{ prompt = $usage.promptTokenCount; candidate = $cCount; total = $tCount; finish = $fin }
         Write-ApiLog -toolName "chat"  # updated to tool name below if a tool call is parsed
 
         $modelText = ""
@@ -1136,8 +1155,12 @@ while ($true) {
                     Write-Host ""
                     Draw-Box @("$CRS  Tool call denied.") -Color Red
                     $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
-                    $script:history += @{ role = "user";  parts = @(@{ text = "TOOL RESULT: The user denied this tool call. Please respond without using that tool." }) }
-                    continue
+                    $script:history += @{ role = "user";  parts = @(@{ text = "[SYSTEM] TOOL RESULT: The user denied this tool call. Standing by for user correction/instruction." }) }
+                    
+                    # Force return to the user's turn
+                    $script:toolJob = $null
+                    $jsonStr = $null
+                    break 
                 }
 
                 Write-Host ""
