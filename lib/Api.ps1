@@ -1,4 +1,4 @@
-﻿# lib/Api.ps1 v0.1.2
+﻿# lib/Api.ps1 v0.1.3
 # Responsibility: Manages interactions with the Google Gemini API, including Job management and error handling.
 # Handles the Start-Job logic for API calls.
 
@@ -157,9 +157,23 @@ function Invoke-GemmaApi {
 }
 
 function Invoke-RpmCheck {
-    param([string]$backend = "gemma")
+    param(
+        [string]$backend = "gemma",
+        [string]$modelHandle = "" # New parameter
+    )
     # Gemini Flash free tier: 15 RPM. Gemma 4/Gemma 3 27B/12B: 2 RPM. Others: 5 RPM.
-    $rpm         = if ($backend -eq "gemini") { 15 } elseif ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) { 2 } else { 5 }
+    # Embedding APIs typically have much higher limits.
+    $rpm = 5 # Default RPM
+
+    if ($modelHandle -in @("embedding-lite", "embedding-pro")) {
+        $rpm = 99 # High RPM for embedding models
+    } elseif ($backend -eq "gemini") {
+        $rpm = 15 # Standard Gemini models (Flash free tier)
+    } elseif ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) {
+        $rpm = 2 # High-end Gemma models
+    } else {
+        $rpm = 5 # Other Gemma models
+    }
     $windowStart = (Get-Date).AddSeconds(-60)
 
     if ($backend -eq "gemini") {
@@ -236,6 +250,17 @@ function Invoke-GemmaApiWithRetry {
 function Write-ApiLog {
     param([string]$toolName = "chat")
     $logFile = Join-Path $script:configDir "gemma_cli.log"
+
+    # --- Log Rotation: Keep size under 5MB ---
+    if ((Test-Path $logFile) -and (Get-Item $logFile).Length -gt 5MB) {
+        try {
+            $lines = Get-Content $logFile -ErrorAction SilentlyContinue
+            if ($lines.Count -gt 2000) {
+                $lines[-2000..-1] | Set-Content $logFile -Encoding UTF8 -Force
+            }
+        } catch { }
+    }
+
     $s = $script:lastStatus
     $line = "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}" -f `
         (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), `

@@ -58,7 +58,7 @@ function Invoke-EmbedText {
     if ($text.Length -gt 8000) { $text = $text.Substring(0, 8000) }
     
     # Embedding quota is usually higher, but let's be safe
-    Invoke-RpmCheck -backend "gemini" 
+    Invoke-RpmCheck -backend "gemini" -modelHandle "embedding-lite" 
 
     $modelId = Resolve-ModelId "embedding-lite"
     $uri = "$($script:BASE_URI_BASE)/${modelId}:embedContent?key=$($script:API_KEY)"
