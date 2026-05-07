@@ -1,5 +1,5 @@
-﻿# ===============================================
-# GemmaCLI Tool - create_tool.ps1 v1.2.0
+# ===============================================
+# GemmaCLI Tool - create_tool.ps1 v1.2.2
 # Responsibility: Autonomous Tool Creator via Multi-Agent Evolutionary Pipeline
 # Uses native AST parsing and dual-agent feedback loops.
 # ===============================================
@@ -54,7 +54,7 @@ function Invoke-CreateTool {
     # 1. The Architect (Gemini 2.5 Pro)
     $results += "`n[PHASE 1] The Architect (Gemini 2.5 Pro) drafting initial code..."
     $sysArchitect = @"
-You are an expert PowerShell developer creating tools for GemmaCLI v0.8.0.
+You are an expert PowerShell developer creating tools for GemmaCLI
 A GemmaCLI tool MUST follow this exact structure:
 
 1. HEADER: Start with a standard header:
@@ -67,8 +67,10 @@ A GemmaCLI tool MUST follow this exact structure:
 
 3. METADATA: Define a `$ToolMeta` hash table at the bottom with:
    - Name: (string, lowercase, no spaces)
+   - Icon: (A single emoji or Unicode symbol that visually represents the tool's purpose, e.g., "🛠️" or "🔍")
    - Description: (string, concise)
-   - Category: (array of strings)
+   - Keywords: (array of strings, e.g., @("search", "find", "lookup"))
+   - Category: (array of strings, e.g., @("Coding", "Productivity", "Health", "Other")
    - RendersToConsole: (boolean, set to true ONLY if using Draw-Box/Write-Host directly)
    - RequiresBilling: (boolean, true if using Grounding/Paid features)
    - RequiresKey: (boolean, true if requiring a unique external API key)
@@ -196,9 +198,9 @@ $issuesStr
         $iteration++
     }
 
-    # 4. Final Synthesis Arbitrator (Gemini 2.5 Pro) if not perfect
+    # 4. Final Synthesis Arbitrator (Undefined model) if not perfect
     if (-not $isPerfect) {
-        $results += "`n[PHASE 3] Arbitration (Gemini 2.5 Pro) for final synthesis..."
+        $results += "`n[PHASE 3] Arbitration (Undefined model) for final synthesis..."
         $sysArbitrator = @"
 You are the Master Arbitrator. The previous agents failed to achieve a perfect script after multiple iterations.
 Fix any remaining issues and output the absolute best, final version of this PowerShell GemmaCLI tool.
@@ -246,6 +248,8 @@ $ToolMeta = @{
     Name        = "create_tool"
     Icon        = "🛠️"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "1.2.2"
     Category    = @("Coding/Development")
     Behavior    = "Autonomous Tool Creator. Use this when the user asks you to 'create a tool that does X'. This tool orchestrates a multi-agent pipeline to generate, parse, review, and fix a complete .ps1 tool script before saving it to the more_tools folder."
     Description = "Generates and verifies a new GemmaCLI tool using an evolutionary multi-agent loop with AST parsing."

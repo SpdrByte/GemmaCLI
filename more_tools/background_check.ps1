@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - background_check.ps1 v0.4.0
+# GemmaCLI Tool - background_check.ps1 v0.4.1
 # Responsibility: Comprehensive background screening tool.
 #                 Sources: Registry, State Courts, FBI Wanted.
 #                 Built on working v2.3.0 PSCustomObject foundation.
@@ -604,7 +604,9 @@ $ToolMeta = @{
     Name             = "background_check"
     Icon             = "🕵️"
     RendersToConsole = $true
-    Category    = @("Search and Discover")
+    Interactive      = $false
+    Version          = "0.4.1"
+    Category         = @("Search and Discover")
     Behavior         = "Unified background check tool. Searches Sex Offender Registry, State Courts, and FBI Wanted simultaneously. Call ONLY after gathering firstName, lastName, and ideally state and DOB from the user."
     Description      = "Comprehensive background check across three public record sources: National Sex Offender Registry, Indiana State/Federal Courts, and FBI Wanted database."
     Parameters       = @{

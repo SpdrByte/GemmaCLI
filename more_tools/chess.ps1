@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - chess.ps1 v1.1.0
+# GemmaCLI Tool - chess.ps1 v1.1.1
 # Responsibility: Stateful chess game with perfect legal-move validation.
 # Uses Unicode pieces (♘ ♞ etc.) and python-chess for 100% correct rules.
 # ===============================================
@@ -152,6 +152,8 @@ $ToolMeta = @{
     Name        = "chess"
     Icon        = "♟️"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "1.1.1"
     Category    = @("Gaming/Entertainment")
     Behavior    = "Stateful chess game. Always use this tool for any chess move so Gemma cannot play illegal moves."
     Description = "Full chess engine with Unicode board (♘ ♞ etc.), perfect legal-move validation, undo, and persistent state."

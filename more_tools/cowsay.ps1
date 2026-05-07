@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - cowsay.ps1 v0.2.0
+# GemmaCLI Tool - cowsay.ps1 v0.2.1
 # Responsibility: Wraps text in an ASCII cow speech bubble.
 # ===============================================
 
@@ -66,6 +66,8 @@ $ToolMeta = @{
     Name        = "cowsay"
     Icon        = "🐮"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category    = @("Gaming/Entertainment")
     Behavior    = "Use this tool for entertainment or when explicitly asked. Wraps text in an ASCII cow."
     Description = "Wraps any text in an ASCII cow speech bubble. Classic, unnecessary, and fun."

@@ -55,16 +55,20 @@ function Invoke-DayOfWeekTool {
 
 # Metadata for the GemmaCLI tool registration.
 # This hash table defines how the tool is presented and executed within the GemmaCLI framework.
+# ===============================================
+
 $ToolMeta = @{
-    Version              = "1.1.0"
+    Version              = "1.1.1"
     Name                 = "day_of_week"
     Icon                 = "📅"
+    Interactive          = $false
     Description          = "Get the day of the week (Monday-Sunday) for any given YYYY-MM-DD date."
     Category             = @("Utility", "Calendar", "Time")
-    RendersToConsole     = $true # Indicates this tool produces console output via CONSOLE:: tags.
-    RequiresBilling      = $false # Set to $true if the tool incurs external costs.
-    RequiresKey          = $false # Set to $true if the tool requires an API key.
-    KeyUrl               = "" # URL for obtaining an API key, if RequiresKey is $true.
+    Keywords             = @("date", "day", "calendar", "weekday")
+    RendersToConsole     = $true
+    RequiresBilling      = $false
+    RequiresKey          = $false
+    KeyUrl               = ""
     Behavior             = "This tool performs local .NET DateTime parsing. It validates the input string against the ISO 8601 date format. If parsing fails, it provides a descriptive error instead of crashing."
     Parameters           = @{
         date = @{
@@ -73,15 +77,14 @@ $ToolMeta = @{
             Required    = $true
         }
     }
-    Example              = "<tool_call>day_of_week(date='2024-02-29')</tool_call>"
+    Tutorial             = "I can tell you the day of the week for any date. Try saying: 'What day of the week was 2025-01-01?'"
+    Example              = "<tool_call>{ ""name"": ""day_of_week"", ""parameters"": { ""date"": ""2024-02-29"" } }</tool_call>"
     FormatLabel          = { 
         param($params) 
-        # Provides a human-readable label for the tool call in the UI.
         "Lookup Day for: $($params.date)" 
     }
     Execute              = { 
         param($params) 
-        # The script block that executes the tool's core logic, passing parameters.
         Invoke-DayOfWeekTool -date $params.date 
     }
     ToolUseGuidanceMajor = "Always format the date argument as a string in YYYY-MM-DD format."

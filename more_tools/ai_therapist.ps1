@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - ai_therapist.ps1 v1.1.0
+# GemmaCLI Tool - ai_therapist.ps1 v1.1.1
 # Responsibility: Transforms Gemma into a compassionate AI therapist.
 # ===============================================
 
@@ -55,6 +55,8 @@ $ToolMeta = @{
     Name        = "ai_therapist"
     Icon        = "🛋️"
     RendersToConsole = $true
+    Interactive = $false
+    Version     = "1.1.1"
     Category    = @("Help/Consultation")
     Behavior    = "Transforms the AI into a compassionate mental health counselor with strict crisis protocols."
     Description = "Activate AI Therapist mode. Call this tool when the user asks to talk to a therapist, counselor, or expresses a desire to discuss mental health, stress, anxiety, or emotional struggles."

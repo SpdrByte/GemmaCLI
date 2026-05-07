@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - brave_search.ps1 v0.3.0
+# GemmaCLI Tool - brave_search.ps1 v0.3.1
 # Responsibility: Web search using Brave search engine
 # ===============================================
 
@@ -40,6 +40,8 @@ $ToolMeta = @{
     Name        = "brave_search"
     Icon        = "🦁"
     RendersToConsole = $false
+    Interactive = $false
+    Version     = "0.3.1"
     RequiresKey = $true
     KeyUrl      = "https://search.brave.com/api"
     Category    = @("Search and Discover")

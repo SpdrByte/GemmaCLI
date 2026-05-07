@@ -1,4 +1,5 @@
-﻿# GemmaCLI Tool - writefile.ps1 v0.3.0
+﻿# ===============================================
+# GemmaCLI Tool - writefile.ps1 v0.4.1
 # Responsibility: Writes content to a file. Includes overwrite protection.
 # ===============================================
 
@@ -9,7 +10,7 @@ function Invoke-WriteFileTool {
         [bool]$overwrite = $false
     )
 
-    $file_path = $file_path.Trim().Trim("'").Trim('"').Replace('\\', '\')
+    $file_path = $file_path.Trim().Trim("'").Trim('"')
     if ([string]::IsNullOrWhiteSpace($file_path)) {
         return "ERROR: file_path cannot be empty."
     }
@@ -54,7 +55,7 @@ $ToolMeta = @{
     Name        = "writefile"
     Icon        = "📄"
     RendersToConsole = $false
-    Category    = @("System Administration", "Coding/Development")
+    Category    = @("Coding")
     Behavior    = "Use this tool to write content to a file. It has overwrite protection. If the file exists, the tool will fail and tell you to ask the user for permission. Once permission is granted, set 'overwrite' to true."
     Tutorial    = "I can create files for you. If a file already exists, I'll protect it and ask you to get the user's permission before I overwrite it! Try: 'Write 'Hello' to test.txt'."
     Description = "Writes or overwrites a file. Includes safety protection to prevent accidental data loss."

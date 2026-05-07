@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - coingecko.ps1 v0.2.0
+# GemmaCLI Tool - coingecko.ps1 v0.2.1
 # Responsibility: Fetch coin data
 # ===============================================
 
@@ -25,7 +25,9 @@ $ToolMeta = @{
     Name        = "coingecko"
     Icon        = "🦎"
     RendersToConsole = $false
-    Category    = @("Search and Discover")
+    Interactive      = $false
+    Version          = "0.2.1"
+    Category    = @("Finance")
     Behavior    = "Use this tool to get the current price of a cryptocurrency. It is the best tool for financial data."
     Description = "Fetches cryptocurrency prices from the CoinGecko API."
     Parameters  = @{

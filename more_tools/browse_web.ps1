@@ -1,4 +1,4 @@
-﻿# GemmaCLI Tool - browse_web.ps1 v0.2.0
+﻿# GemmaCLI Tool - browse_web.ps1 v0.2.1
 # Responsibility: Fetches clean, LLM-ready markdown content from any URL using
 # Jina Reader (r.jina.ai), which handles JavaScript, paywalls, and bot protection.
 # No API key required for basic use.
@@ -84,6 +84,8 @@ $ToolMeta = @{
     Name        = "browse_web"
     Icon        = "🌐"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category    = @("Search and Discover")
     Behavior    = "Use this tool to access content from a web URL. If the user provides a URL, use this tool to read its content. It is a good first step for research tasks."
     Description = "Fetches clean readable content from any URL using Jina Reader. Returns LLM-optimized markdown. Works on most sites including those with JavaScript and bot protection. Use this to read web pages, articles, or documentation when given a URL."

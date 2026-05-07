@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - ael_validate.ps1 v1.2.0
+# GemmaCLI Tool - ael_validate.ps1 v1.2.3
 # Responsibility: Parses and validates AEL (ASCII Electronics Language) v0.3
 #                 circuits. Returns structured JSON errors for LLM self-correction.
 #                 Board-agnostic — works with any board definition.
@@ -624,13 +624,16 @@ $ToolMeta = @{
     Name        = "ael_validate"
     Icon        = "🛠️"
     RendersToConsole = $false
-    Category    = @("Physical Computing")
+    Interactive = $false
+    Version     = "1.2.3"
+    Category    = @("Coding")
     Relationships = @{
         "arduino_boards" = "When creating circuits for Arduino/ESP boards, always use 'ael_validate' to verify your AEL code before presenting it. If validation passes, you should then call 'arduino_boards' action='diagram' with the 'ael' parameter to provide the user with a visual wiring guide."
         "esp_boards"     = "When creating circuits for ESP32/Espressif boards, always use 'ael_validate' to verify your AEL code before presenting it. If validation passes, you should then call 'esp_boards' action='diagram' with the 'ael' parameter to provide the user with a visual wiring guide."
     }
     Behavior    = "Validates AEL (ASCII Electronics Language) v0.3 circuit definitions. Parses BOARD, COMP, WIRE, POWER, BUS, and NET statements and returns structured JSON errors for self-correction. Board-agnostic — use with any board in the database."
     Description = "Parses and validates an AEL circuit string. Returns JSON with errors and warnings including line numbers, error codes, and fix suggestions."
+    Keywords    = @("arduino", "electronics", "esp", "espressif", "circuit", "mcu", "microcontroller")
     Parameters  = @{
         ael = "string - the full AEL circuit text to validate"
     }

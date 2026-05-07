@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - crop_image.ps1 v0.2.0
+# GemmaCLI Tool - crop_image.ps1 v0.2.1
 # Responsibility: Crops an image using simple positioning labels.
 # ===============================================
 
@@ -100,6 +100,8 @@ $ToolMeta = @{
     Name        = "crop_image"
     Icon        = "✂️"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category    = @("Digital Media Production")
     Behavior    = "Use this tool to crop an existing image. Supported formats: PNG, JPG, JPEG, and GIF. Does NOT support WEBP or HEIC. You can position the crop box using simple vertical and horizontal labels."
     Description = "Crops an image (PNG, JPG, GIF). Specify dimensions and position (top/middle/bottom, left/center/right)."

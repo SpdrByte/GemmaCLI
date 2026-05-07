@@ -1,8 +1,10 @@
 # ===============================================
-# GemmaCLI Tool - arduino_boards.ps1 v0.3.0
+# GemmaCLI Tool - arduino_boards.ps1 v0.3.1
 
 # Responsibility: Board knowledge for the Arduino family.
 #                 Lists boards, pins, protocols, metadata, and renders
+#                 ASCII diagrams for circuit visualization.
+# ===============================================
 #                 ASCII board diagrams with optional AEL pin highlighting.
 #                 Does NOT generate or validate AEL — use ael_validate for that.
 # Depends on: database/dev_boards.json
@@ -388,8 +390,10 @@ function Invoke-ArduinoBoards {
 
 $ToolMeta = @{
     Name        = "arduino_boards"
-    Icon        = "🔌"
+    Icon        = "⚛️"
     RendersToConsole = $true
+    Interactive = $false
+    Version     = "0.3.1"
     Category    = @("Physical Computing")
     Relationships = @{
         "ael_validate" = "Use this synergy for advanced physical computing workflows. When the user requests a circuit, first use 'arduino_boards' to find valid pin names and protocol-capable pins (PWM, I2C, etc.). Generate the AEL circuit, then call 'ael_validate' to verify it. ONLY after a successful validation should you call 'arduino_boards' with action='diagram' and the 'ael' parameter to show the user the final, verified wiring diagram."

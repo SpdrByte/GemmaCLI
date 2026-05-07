@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - create_directory.ps1 v0.2.0
+# GemmaCLI Tool - create_directory.ps1 v0.2.1
 # Responsibility: Creates a new directory (and parents if needed) at the specified path.
 # ===============================================
 
@@ -40,6 +40,8 @@ $ToolMeta = @{
     Name        = "create_directory"
     Icon        = "📁"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category    = @("System Administration")
     Behavior    = "Use this tool to create a new directory. This is useful for organizing files or preparing for a new project."
     Description = "Creates a new directory at the specified path, including any missing parent directories. Use this before writing files to a location that may not exist yet."

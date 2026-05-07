@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - diffwatcher.ps1 v0.2.0
+# GemmaCLI Tool - diffwatcher.ps1 v0.2.1
 # Responsibility: Watches a file for external changes using FileSystemWatcher,
 #                 then returns a formatted unified diff for analysis.
 #                 Primary use: auditing edits made by other agents or collaborators.
@@ -132,6 +132,8 @@ $ToolMeta = @{
     Name             = "diffwatcher"
     Icon             = "👁️"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category         = @("Memory Management", "Coding/Development", "System Administration")
     Behavior         = "Use this tool to monitor a file for edits made by another agent, a collaborator, or the user. It snapshots the file contents, waits for the file to change, then returns a formatted line-by-line diff for your analysis."
     Description      = "Watches a file for external changes using FileSystemWatcher. When the file is modified, returns a formatted unified diff (max 500 lines) showing added, removed, and unchanged lines with line numbers. Truncates with a warning on large changesets."

@@ -1,5 +1,5 @@
 # ===============================================
-# GemmaCLI Tool - audioedit.ps1 v0.2.0
+# GemmaCLI Tool - audioedit.ps1 v0.2.1
 
 # Responsibility: Audio editing via FFmpeg (Gyan.FFmpeg v8.1+)
 #
@@ -855,6 +855,8 @@ $ToolMeta = @{
     Name             = "audioedit"
     Icon             = "🎵"
     RendersToConsole = $false
+    Interactive      = $false
+    Version          = "0.2.1"
     Category         = @("Digital Media Production")
 
     Behavior = @"
