@@ -1,6 +1,6 @@
 # Gemma CLI: Agentic AI Station for Gemma 4 - Free AI Agent in your terminal!
 
-![Version: 0.8.8](https://img.shields.io/badge/Version-0.8.0-green)
+![Version: 0.8.8](https://img.shields.io/badge/Version-0.8.8-green)
 ![Model: Gemma 4](https://img.shields.io/badge/Model-Gemma%204-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
