@@ -29,6 +29,10 @@ $H = [char]0x2500;  $V = [char]0x2502;  $ARR = [char]0x2192; $CHK = [char]0x2713
 $CRS = [char]0x2717; $DOT = [char]0x25CF; $BUL = [char]0x2022; $BLK = [char]0x2588
 $LBK = [char]0x2591; $WRN = [char]0x26A0
 
+# ====================== DRAWBOX WIDTH STANDARDS ======================
+$DRAWBOX_WIDTH_SLIM = 80
+$DRAWBOX_WIDTH_WIDE = 100
+
 # =========================================================================================
 # SCRIPT INITIALIZATION
 # =========================================================================================
@@ -88,6 +92,7 @@ $script:TOOL_LIMITS = @{
 . (Join-Path $scriptDir "lib/Api.ps1")
 . (Join-Path $scriptDir "lib/UI.ps1")
 . (Join-Path $scriptDir "lib/History.ps1")
+. (Join-Path $scriptDir "lib/Renderer.ps1")
 
 # ====================== DEBUG =======================
 $script:debugMode = $false
@@ -112,23 +117,6 @@ function Initialize-TTS {
     return $true
 }
 
-function Format-TextForSpeech {
-    param([string]$text)
-    if ([string]::IsNullOrWhiteSpace($text)) { return "" }
-    
-    # Strip thoughts, channels, and code blocks
-    $clean = $text -replace '(?s)<thought>.*?</thought>', ''
-    $clean = $clean -replace '(?s)<\|channel>thought.*?<channel\|>', ''
-    $clean = $clean -replace '(?s)<code_block>.*?</code_block>', ' [Code block omitted] '
-    $clean = $clean -replace '(?s)```.*?```', ' [Code block omitted] '
-    
-    # Strip markdown markers
-    $clean = $clean -replace '\*\*', ''
-    $clean = $clean -replace '\*', ''
-    
-    return $clean.Trim()
-}
-
 function Save-ApiKey {
     param([string]$apiKey)
     Save-StoredKey -apiKey $apiKey -keyName "gemmacli"
@@ -144,10 +132,20 @@ if (-not $API_KEY) {
     Write-Host "https://aistudio.google.com/app/apikey`n" -ForegroundColor Gray
     do {
         $secureInput = Read-Host "Enter your Gemma API key" -AsSecureString
-        $plainKey    = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput))
+        $bstr1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+        try {
+            $plainKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr1)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr1)
+        }
         
         $confirmInput = Read-Host "Confirm key (paste again)" -AsSecureString
-        $confirm      = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmInput))
+        $bstr2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmInput)
+        try {
+            $confirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr2)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr2)
+        }
 
         if ($plainKey -ne $confirm) { Write-Host "$CRS  Keys do not match. Try again." -ForegroundColor Red }
         elseif ([string]::IsNullOrWhiteSpace($plainKey)) { Write-Host "$CRS  API key cannot be empty." -ForegroundColor Red }
@@ -215,7 +213,12 @@ function Initialize-ToolKeys {
                     $secureInput = Read-SecureStringWithCancel -Prompt "Enter API key for $($tool.Name)"
                     if ($null -eq $secureInput) { $cancelled = $true; break }
                     
-                    $plainKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput))
+                    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInput)
+                    try {
+                        $plainKey = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+                    } finally {
+                        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+                    }
                     
                     $confirm = Read-HostWithCancel -Prompt "Confirm API key (paste again)"
                     if ($null -eq $confirm) { $cancelled = $true; break }
@@ -378,7 +381,7 @@ $helpLines = @(
     "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.8.1 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width 80 -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.8.8 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width $DRAWBOX_WIDTH_SLIM -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -434,7 +437,7 @@ while ($true) {
         [Console]::SetCursorPosition(0, $endY)
     }
 
-    if ($userInput -eq "exit" -or $userInput -eq "/exit") { break }
+    if ($userInput -eq "/exit") { break }
 
 
      if ($userInput -eq "/multiline") {
@@ -504,7 +507,7 @@ while ($true) {
     }
 
     if ($userInput -eq "/help") {
-        Draw-Box $helpLines -Title "Gemma CLI  $BUL  Help" -Width 80 -Color $script:Colors.ui_boxes
+        Draw-Box $helpLines -Title "Gemma CLI  $BUL  Help" -Width $DRAWBOX_WIDTH_SLIM -Color $script:Colors.ui_boxes
         continue
     }
 
@@ -587,7 +590,7 @@ while ($true) {
                     $boxLines += "    $($m.date.Substring(0,10))  $preview"
                 }
             }
-            Draw-Box $boxLines -Title "/recall  $BUL  Memory Loaded" -Width 80 -Color Magenta
+            Draw-Box $boxLines -Title "/recall  $BUL  Memory Loaded" -Width $DRAWBOX_WIDTH_SLIM -Color Magenta
 
         } catch {
             Draw-Box @("$CRS  Failed to load memory: $($_.Exception.Message)") -Color Red
@@ -644,10 +647,7 @@ while ($true) {
         }
 
         $toolLines = Get-ToolsSummary -ScriptRoot $scriptDir -Mode $mode
-        $wikiPath = Join-Path $scriptDir "TOOLS.html"
-        $toolLines += ""
-        $toolLines += "  $BUL  Tool Docs: $(Convert-ToHyperlink -Text $wikiPath)"
-        Draw-Box $toolLines -Title $title -Width 90 -Color Green
+        Draw-Box $toolLines -Title $title -Width $DRAWBOX_WIDTH_WIDE -Color Green
         continue
     }
 
@@ -691,8 +691,8 @@ while ($true) {
                         $meta = $script:TOOL_CACHE[$_.Name]
 
                         $inds = @()
-                        if ($meta.Interactive) { $indicators += "⚠ " }
-                        if ($meta.RequiresKey) { $indicators += "🔑" }
+                        if ($meta.Interactive) { $inds += "⚠ " }
+                        if ($meta.RequiresKey) { $inds += "🔑" }
                         $indStr = if ($inds.Count -gt 0) { " " + ($inds -join " ") } else { "" }
 
                         "$($meta.Icon) $($_.Name)$indStr ($($_.Status))" 
@@ -825,7 +825,7 @@ while ($true) {
             $lines += "You haven't created any custom commands yet."
         }
 
-        Draw-Box $lines -Title "Custom Commands Management" -Width 80 -Color $script:Colors.custom_command
+        Draw-Box $lines -Title "Custom Commands Management" -Width $DRAWBOX_WIDTH_SLIM -Color $script:Colors.custom_command
         continue
     }
 
@@ -853,12 +853,14 @@ while ($true) {
         }
 
         if ([string]::IsNullOrWhiteSpace($modelArg)) {
-            # UI shows Checkmark (if current), ID, and Description in aligned columns
+            # UI shows Checkmark (if current), ID + thinking level, and Description
             $menuLabels = $availableGemma | ForEach-Object {
                 $e = $_.Value
                 $isCurrent = ($_.Name -eq $script:MODEL_HANDLE)
                 $prefix = if ($isCurrent) { "$CHK " } else { "  " }
-                "$prefix $($e.id.PadRight(25)) $ARR  $($e.desc)"
+                $thinkSuffix = switch ($e.thinking) { "MINIMAL" { "min" } "HIGH" { "high" } default { $e.thinking } }
+                $displayId = if ($e.thinking) { "$($e.id)-$thinkSuffix" } else { $e.id }
+                "$prefix $($displayId.PadRight(25)) $ARR  $($e.desc)"
             }
             
             $currentIdx = 0
@@ -940,20 +942,17 @@ while ($true) {
         Draw-Box @("Executing custom command: $userInput") -Color $script:Colors.custom_command
     }
 
-    if ([string]::IsNullOrWhiteSpace($userInput)) { 
-        # Move up one line and clear it to remove the dangling "You:" prompt
-        Write-Host "$esc[1A$esc[K" -NoNewline
-        continue 
-    }
+    if ([string]::IsNullOrWhiteSpace($userInput)) { continue }
 
     $script:history += @{ role = "user"; parts = @(@{ text = $userInput }) }
 
     $currentUri = Get-ApiUri 
     $toolTurns    = 0
-    $defaultMax   = if ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) { 8 } else { 4 }
-    $maxToolTurns = if ($script:Settings.max_tool_turns) { [int]$script:Settings.max_tool_turns } else { $defaultMax }
+    $maxToolTurns = if ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) { 4 } else { 2 }
 
-    while ($true) {
+    while ($toolTurns -lt $maxToolTurns) {
+        $toolTurns++
+
         # RPM check — enforces free-tier request-per-minute ceiling before every call
         Invoke-RpmCheck -backend "gemma"
 
@@ -974,14 +973,14 @@ while ($true) {
 
         Stop-Spinner 
 
-        if ($resp.cancelled) {
-            Write-Host " [Operation cancelled by user]" -ForegroundColor Yellow
-            break
-        }
-
         if (-not $resp) {
             Write-Host ""
             Draw-Box @("$CRS  No response from API. Check your connection or API key.") -Color Red
+            break
+        }
+
+        if ($resp.cancelled) {
+            Write-Host " [Operation cancelled by user]" -ForegroundColor Yellow
             break
         }
         if ($resp.apiError) {
@@ -1000,23 +999,7 @@ while ($true) {
         # Update metadata for next status bar draw
         $usage = $resp.usageMetadata
         $fin   = $resp.candidates[0].finishReason
-
-        # Handle plural/singular inconsistency and missing candidate data in Google's API schema
-        $cCount = if ($usage.candidatesTokenCount) { $usage.candidatesTokenCount } 
-                  elseif ($usage.candidateTokenCount) { $usage.candidateTokenCount }
-                  elseif ($usage.totalTokenCount -and $usage.promptTokenCount) { 
-                      [math]::Max(0, [int]$usage.totalTokenCount - [int]$usage.promptTokenCount) 
-                  }
-                  else { 0 }
-
-        $tCount = if ($usage.totalTokenCount -and $usage.totalTokenCount -gt 0) { $usage.totalTokenCount } 
-                  else { ([int]$usage.promptTokenCount + [int]$cCount) }
-
-        if ($script:debugMode) {
-            Write-Host " [Meta] candidatesTokenCount=$($usage.candidatesTokenCount) candidateTokenCount=$($usage.candidateTokenCount) total=$($usage.totalTokenCount) -> resolved: cand=$cCount total=$tCount" -ForegroundColor DarkYellow
-        }
-
-        $script:lastStatus = @{ prompt = $usage.promptTokenCount; candidate = $cCount; total = $tCount; finish = $fin }
+        $script:lastStatus = @{ prompt = $usage.promptTokenCount; candidate = $usage.candidatesTokenCount; total = $usage.totalTokenCount; finish = $fin }
         Write-ApiLog -toolName "chat"  # updated to tool name below if a tool call is parsed
 
         $modelText = ""
@@ -1029,25 +1012,21 @@ while ($true) {
         }
         $modelText = $modelText.Trim()
 
-        if ([string]::IsNullOrWhiteSpace($modelText) -and -not $resp.candidates[0].content.parts.tool_calls) {
-             # Only show error if no tool call was parsed elsewhere
-             Write-Host ""
-             Draw-Box @("$CRS  Empty response received. This may be a safety block or API glitch.") -Color Red
-             break
-        }
         function Render-ModelText {
             param([string]$text)
             Write-Host ""
             Write-Host " Gemma: " -NoNewline -ForegroundColor $script:Colors.gemma_response
-            
+
             # Support both <thought> tags and native <|channel>thought tags
             $segments = [System.Text.RegularExpressions.Regex]::Split($text, '(?s)(<thought>.*?</thought>|<\|channel>thought.*?<channel\|>)')
             foreach ($seg in $segments) {
                 if ($seg -match '(?s)<thought>(.*?)</thought>' -or $seg -match '(?s)<\|channel>thought(.*?)<channel\|>') {
                     $thought = $matches[1].Trim()
-                    Write-Host "`n  [THINKING]: " -NoNewline -ForegroundColor Gray
-                    Write-Host $thought -ForegroundColor DarkGray
-                    Write-Host ""
+                    if ($thought) {
+                        Write-Host "`n  [THINKING]: " -NoNewline -ForegroundColor Gray
+                        Write-Host $thought -ForegroundColor DarkGray
+                        Write-Host ""
+                    }
                 } else {
                     # Split remaining text by code blocks
                     $subSegments = [System.Text.RegularExpressions.Regex]::Split($seg, '(?s)(<code_block>.*?</code_block>)')
@@ -1061,7 +1040,8 @@ while ($true) {
                             Write-Host ""
                         } else {
                              if ($sub.Trim()) { 
-                                $hyperlinked = Convert-ToHyperlink -Text $sub
+                                $formatted = Format-Markdown -Text $sub
+                                $hyperlinked = Convert-ToHyperlink -Text $formatted
                                 Write-Host $hyperlinked 
                              }
                         }
@@ -1070,7 +1050,6 @@ while ($true) {
             }
             Write-Host ""
         }
-
         $jsonStr = $null
         $preText = $null
         $strippedText = $modelText -replace '(?s)<code_block>.*?</code_block>', '[code block]'
@@ -1096,14 +1075,6 @@ while ($true) {
         # Format 5: Bare function call style tool_name({"param": "value"})
         elseif ($strippedText -match '(?s)(.*?)(\w+)\(\s*(\{.*?\})\s*\)') {
             $preText = $matches[1].Trim(); $jsonStr = "{`"name`": `"$($matches[2])`", `"parameters`": $($matches[3])}"
-        }
-        # Format 6: Expanded XML tags <tool_call><name>...</name><parameters>...</parameters></tool_call>
-        elseif ($strippedText -match '(?s)(.*?)<tool_call>\s*<name>(.*?)</name>\s*<parameters>(.*?)</parameters>\s*</tool_call>') {
-            $preText = $matches[1].Trim()
-            $tName = $matches[2].Trim()
-            $tParams = $matches[3].Trim()
-            # Convert simple XML parameters to JSON if possible, or wrap as string
-            $jsonStr = "{`"name`": `"$tName`", `"parameters`": $tParams}"
         }
 
         if ($jsonStr) {
@@ -1131,6 +1102,10 @@ while ($true) {
          }
    
          try {
+            if ($fin -eq "MAX_TOKENS") {
+                throw "Output was truncated by the model's token limit (MAX_TOKENS). The JSON payload is likely incomplete."
+            }
+
             $call = $jsonStr | ConvertFrom-Json
                 $params = ConvertTo-Hashtable -Object $call.parameters
                 $tool = $script:TOOLS[$call.name]
@@ -1155,12 +1130,8 @@ while ($true) {
                     Write-Host ""
                     Draw-Box @("$CRS  Tool call denied.") -Color Red
                     $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
-                    $script:history += @{ role = "user";  parts = @(@{ text = "[SYSTEM] TOOL RESULT: The user denied this tool call. Standing by for user correction/instruction." }) }
-                    
-                    # Force return to the user's turn
-                    $script:toolJob = $null
-                    $jsonStr = $null
-                    break 
+                    $script:history += @{ role = "user";  parts = @(@{ text = "TOOL RESULT: The user denied this tool call. Please respond without using that tool." }) }
+                    continue
                 }
 
                 Write-Host ""
@@ -1284,7 +1255,7 @@ while ($true) {
                 $truncNote = if ($truncated) { "`n[Note: file was truncated to $maxChars characters due to size limits]" } else { "" }
 
                 # Handle console-only messages (printed to user, stripped before Gemma sees result)
-                if ($result -match "(?s)^CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
+                if ($result -match "(?s).*?CONSOLE::(.+?)::END_CONSOLE::(.*)$") {
                     $consoleRaw = $matches[1]
                     $result = $matches[2].Trim()
 
@@ -1311,7 +1282,7 @@ while ($true) {
                     }
 
                     # Handle inline instructions for PLAY_SOUND (WAV files from C:\Windows\Media)
-                    if ($consoleRaw -match "PLAY_SOUND:([\w\s.-]+)") {
+                    if ($consoleRaw -match "PLAY_SOUND:([^\r\n:]+)") {
                         $soundFile = $matches[1]
                         $fullPath = "C:\Windows\Media\$soundFile"
                         if (-not ($fullPath.EndsWith(".wav"))) { $fullPath += ".wav" }
@@ -1321,12 +1292,12 @@ while ($true) {
                             try {
                                 $speaker = New-Object System.Media.SoundPlayer
                                 $speaker.SoundLocation = $fullPath
-                                $speaker.Play() 
+                                $speaker.PlaySync() 
                             } catch {} finally {
                                 if ($speaker) { $speaker.Dispose() }
                             }
                         }
-                        $consoleRaw = $consoleRaw -replace "::?PLAY_SOUND:[\w\s.-]+", ""
+                        $consoleRaw = $consoleRaw -replace "(::)?PLAY_SOUND:[^\r\n:]+(::)?", ""
                     }
 
                     $consoleText = Convert-ToHyperlink -Text $consoleRaw
@@ -1356,8 +1327,16 @@ while ($true) {
                 continue
 
             } catch {
-                Write-Host "Tool call parse error: $($_.Exception.Message)" -ForegroundColor Red
-                break
+                if ($script:debugMode) {
+                    Write-Host "`n[DEBUG] Tool Parse/JSON Exception: $($_.Exception.Message)" -ForegroundColor Yellow
+                    Write-Host "[DEBUG] StackTrace: $($_.ScriptStackTrace)" -ForegroundColor DarkGray
+                }
+                Write-Host ""
+                Draw-Box @("Tool Call Error: $($_.Exception.Message)", "Sending feedback to model...") -Color Yellow
+                
+                $script:history += @{ role = "model"; parts = @(@{ text = $modelText }) }
+                $script:history += @{ role = "user"; parts = @(@{ text = "[SYSTEM ERROR]: Your last tool call was malformed or truncated. ERROR: $($_.Exception.Message)`n`nINSTRUCTION: Do not repeat the exact same output. If you were writing a large file, break it into smaller chunks or ask for user confirmation." }) }
+                continue
             }
 
        } else {
