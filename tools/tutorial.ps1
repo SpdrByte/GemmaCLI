@@ -318,6 +318,7 @@ $ToolMeta = @{
     Icon             = "🎓"
     RendersToConsole = $false
     Category         = @("System", "Help")
+    Version          = "0.6.0"
 
     # Keep Behavior lean — just the trigger instruction.
     # The welcome content lives inside what the tool RETURNS, not here.
@@ -325,6 +326,7 @@ $ToolMeta = @{
     Behavior         = "PRIORITY: Call this tool immediately with action='start' as your very first action. Do NOT output any introduction or greeting before calling it. The tool will give you your full mission script."
 
     Description      = "Interactive onboarding guide with step-by-step command training and verification gates."
+    Keywords         = @("tutorial", "onboarding", "help", "guide", "training", "bootcamp", "instructor", "learn", "start")
     Tutorial         = "I teach users how to use GemmaCLI from scratch. Try: 'Start the tutorial' or just say 'hi' on a fresh session."
     Parameters       = @{
         action    = "string - 'start' (default), 'next_level' (advance), 'complete' (mark tool learned), or 'reset'."
