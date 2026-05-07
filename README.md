@@ -1,6 +1,6 @@
-# Gemma CLI: Agentic AI Station for Gemma 4 & 3 - Free AI Agent in your terminal!
+# Gemma CLI: Agentic AI Station for Gemma 4 - Free AI Agent in your terminal!
 
-![Version: 0.8.0](https://img.shields.io/badge/Version-0.8.0-green)
+![Version: 0.8.8](https://img.shields.io/badge/Version-0.8.0-green)
 ![Model: Gemma 4](https://img.shields.io/badge/Model-Gemma%204-magenta)
 ![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue)
 ![Shell: PowerShell 5.1+](https://img.shields.io/badge/Shell-PS%205.1%2B-blue)
@@ -151,6 +151,7 @@ Gemma's context-awareness before Gemini expands with its knowledge base.
 Each pipeline uses 3 API calls and displays all intermediate reasoning steps, 
 giving you full visibility into how the final answer was constructed.
 
+**This will be made into a tool and removed from main options in an upcoming build**
 ---
 
 ## Smart Trim & RAG Memory
@@ -237,7 +238,7 @@ In practice this means Gemma can receive a high-level instruction like "find all
 
 * System insight tool
 
-* Self-Improvement mode
+* Self-Improvement mode (create_tool.ps1) ✓
 
 * Backend Agnostic
 
