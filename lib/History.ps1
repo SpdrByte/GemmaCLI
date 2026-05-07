@@ -8,7 +8,7 @@ function Trim-History {
         $total = 0
         foreach ($turn in $h) {
             foreach ($part in $turn.parts) {
-                if ($part.text) { $total += [int]($part.text.Length / 4) }
+                if ($part.text) { $total += [int]($part.text.Length / 3) }
             }
         }
         return $total
@@ -58,7 +58,7 @@ function Invoke-EmbedText {
     if ($text.Length -gt 8000) { $text = $text.Substring(0, 8000) }
     
     # Embedding quota is usually higher, but let's be safe
-    Invoke-RpmCheck -backend "gemini" -modelHandle "embedding-lite" 
+    Invoke-RpmCheck -backend "gemini" 
 
     $modelId = Resolve-ModelId "embedding-lite"
     $uri = "$($script:BASE_URI_BASE)/${modelId}:embedContent?key=$($script:API_KEY)"
@@ -112,7 +112,7 @@ function Invoke-SmartTrim {
         $tokenEst = 0
         foreach ($turn in $hist) {
             foreach ($part in $turn.parts) {
-                if ($part.text) { $tokenEst += [int]($part.text.Length / 4) }
+                if ($part.text) { $tokenEst += [int]($part.text.Length / 3) }
             }
         }
         if ($tokenEst -le $tokenBudget) {

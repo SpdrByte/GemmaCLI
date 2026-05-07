@@ -1,4 +1,4 @@
-﻿# lib/Api.ps1 v0.1.3
+﻿# lib/Api.ps1 v0.1.2
 # Responsibility: Manages interactions with the Google Gemini API, including Job management and error handling.
 # Handles the Start-Job logic for API calls.
 
@@ -10,8 +10,16 @@ function Get-StoredKey {
         try {
             $secureString = Import-Clixml -Path $configFile
             $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
-            return [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } catch { }
+            try {
+                return [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            } finally {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+            }
+        } catch { 
+            if ($script:debugMode) {
+                Write-Host " [DEBUG] Get-StoredKey failed for '$keyName': $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
     }
     return $null
 }
@@ -84,6 +92,13 @@ function Invoke-ModelGeneration {
     # Capture current setting from main thread to pass into the background job
     $currentExpect = [System.Net.ServicePointManager]::Expect100Continue
 
+    # Extract optional thinking level for the current handle
+    $thinkingLevel = $script:MODEL_REGISTRY.$script:MODEL_HANDLE.thinking
+
+    # Inject thinkingLevel inside thinkingConfig within generationConfig
+    $gConfigWithThinking = $gConfig.Clone()
+    if ($thinkingLevel) { $gConfigWithThinking["thinkingConfig"] = @{ thinkingLevel = $thinkingLevel.ToLower() } }
+
     $script:apiJob = Start-Job -ScriptBlock {
         param($uri, $contents, $gConfig, $tools, $toolConfig, $expectSetting)
         
@@ -124,7 +139,7 @@ function Invoke-ModelGeneration {
             $msg = if ($detail) { $detail } else { $_.Exception.Message }
             [PSCustomObject]@{ apiError = $msg }
         }
-    } -ArgumentList $uri, $contents, $gConfig, $tools, $toolConfig, $currentExpect
+    } -ArgumentList $uri, $contents, $gConfigWithThinking, $tools, $toolConfig, $currentExpect
 
     $cancelled = $false
     while ($script:apiJob.State -eq "Running") {
@@ -157,29 +172,23 @@ function Invoke-GemmaApi {
 }
 
 function Invoke-RpmCheck {
-    param(
-        [string]$backend = "gemma",
-        [string]$modelHandle = "" # New parameter
-    )
-    # Gemini Flash free tier: 15 RPM. Gemma 4/Gemma 3 27B/12B: 2 RPM. Others: 5 RPM.
-    # Embedding APIs typically have much higher limits.
-    $rpm = 5 # Default RPM
-
-    if ($modelHandle -in @("embedding-lite", "embedding-pro")) {
-        $rpm = 99 # High RPM for embedding models
-    } elseif ($backend -eq "gemini") {
-        $rpm = 15 # Standard Gemini models (Flash free tier)
-    } elseif ($script:MODEL -in @("gemma-4-31b-it","gemma-4-26b-a4b-it","gemma-3-27b-it","gemma-3-12b-it")) {
-        $rpm = 2 # High-end Gemma models
-    } else {
-        $rpm = 5 # Other Gemma models
-    }
+    param([string]$backend = "gemma")
+    # Gemini Flash free tier: 15 RPM. Gemma 27B/12B: 2 RPM. Others: 5 RPM.
+    $rpm         = if ($backend -eq "gemini") { 15 } 
+                   elseif ($backend -eq "embedding") { 99 }
+                   elseif ($script:MODEL -in @("gemma-3-27b-it","gemma-3-12b-it")) { 2 } 
+                   else { 5 }
     $windowStart = (Get-Date).AddSeconds(-60)
 
     if ($backend -eq "gemini") {
         $script:apiCallLog_Gemini.RemoveAll([Predicate[datetime]]{ param($t) $t -lt $windowStart }) | Out-Null
         $count  = $script:apiCallLog_Gemini.Count
         $oldest = if ($count -gt 0) { $script:apiCallLog_Gemini[0] } else { $null }
+    } elseif ($backend -eq "embedding") {
+        if ($null -eq $script:apiCallLog_Embedding) { $script:apiCallLog_Embedding = [System.Collections.Generic.List[datetime]]::new() }
+        $script:apiCallLog_Embedding.RemoveAll([Predicate[datetime]]{ param($t) $t -lt $windowStart }) | Out-Null
+        $count  = $script:apiCallLog_Embedding.Count
+        $oldest = if ($count -gt 0) { $script:apiCallLog_Embedding[0] } else { $null }
     } else {
         $script:apiCallLog_Gemma.RemoveAll([Predicate[datetime]]{ param($t) $t -lt $windowStart }) | Out-Null
         $count  = $script:apiCallLog_Gemma.Count
@@ -203,6 +212,8 @@ function Invoke-RpmCheck {
 
     if ($backend -eq "gemini") {
         $script:apiCallLog_Gemini.Add((Get-Date))
+    } elseif ($backend -eq "embedding") {
+        $script:apiCallLog_Embedding.Add((Get-Date))
     } else {
         $script:apiCallLog_Gemma.Add((Get-Date))
     }
@@ -250,17 +261,6 @@ function Invoke-GemmaApiWithRetry {
 function Write-ApiLog {
     param([string]$toolName = "chat")
     $logFile = Join-Path $script:configDir "gemma_cli.log"
-
-    # --- Log Rotation: Keep size under 5MB ---
-    if ((Test-Path $logFile) -and (Get-Item $logFile).Length -gt 5MB) {
-        try {
-            $lines = Get-Content $logFile -ErrorAction SilentlyContinue
-            if ($lines.Count -gt 2000) {
-                $lines[-2000..-1] | Set-Content $logFile -Encoding UTF8 -Force
-            }
-        } catch { }
-    }
-
     $s = $script:lastStatus
     $line = "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}" -f `
         (Get-Date -Format "yyyy-MM-ddTHH:mm:ss"), `
