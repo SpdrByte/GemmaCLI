@@ -4,7 +4,7 @@ All notable changes to the **Gemma CLI** will be documented in this file. This p
 
 ---
 
-## [0.9.0] - 2026-05-01
+## [0.8.8] - 2026-05-01
 
 ### Model Migration: Gemma 3 → Gemma 4
 - **Google API deprecation**: Google has deprecated all Gemma 3 models in the Generative Language API. All Gemma 3 handles have been remapped to Gemma 4 equivalents.
