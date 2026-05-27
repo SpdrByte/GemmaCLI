@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - search_content.ps1 v1.0.1
+# GemmaCLI Tool - search_content.ps1 
 # Responsibility: Recursively searches for a regex pattern within files with strict limits.
 # ===============================================
 
@@ -9,7 +9,8 @@ function Invoke-SearchContentTool {
         [string]$search_string,
         [string]$dir_path = ".",
         [string]$include = "*",
-        [string]$exclude = ""
+        [string]$exclude = "",
+        [bool]$recursive = $true
     )
 
     try {
@@ -24,7 +25,7 @@ function Invoke-SearchContentTool {
         # Gather files with recursion limit
         $gciParams = @{
             Path        = $rootPath.Path
-            Recurse     = $true
+            Recurse     = $recursive
             Depth       = $maxDepth
             File        = $true
             ErrorAction = "SilentlyContinue"
@@ -66,6 +67,7 @@ function Invoke-SearchContentTool {
 $ToolMeta = @{
     Name = "search_content"
     Icon = "🔍"
+    Version = "1.1.0"
     Description = "Recursively searches for a string or regex within files in a directory (max 100 results)."
     Keywords = @("search", "find", "grep", "regex", "content", "lookup")
     Category = @("Coding")
@@ -79,8 +81,9 @@ $ToolMeta = @{
         dir_path      = "The directory to start the search in (defaults to current)."
         include       = "Wildcard pattern for files to include (e.g., '*.ps1')."
         exclude       = "Wildcard pattern for files/folders to exclude (e.g., 'node_modules')."
+        recursive     = "Toggle recursion (bool)."
     }
-    Example = '<tool_call name="search_content">{"search_string": "function\\s+Get-Data", "dir_path": "./src", "include": "*.js"}</tool_call>'
+    Example = '<tool_call name="search_content">{"search_string": "function\\s+Get-Data", "dir_path": "./src", "include": "*.js", "recursive": false}</tool_call>'
     FormatLabel = { 
         param($res) 
         "Search: '$($res.search_string)'" 
