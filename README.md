@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)
 [![Website](https://img.shields.io/badge/Web-SpdrByte.com-orange)](https://spdrbyte.com)
 
-Gemma CLI is a high-performance, extensible **Agentic AI Station** designed for Google's **Gemma 4** model family. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, physical computing, and professional image generation. Utilizing **MoE (Mixture of Experts)** architectures and advanced **Adversarial Agent** pipelines, it delivers unprecedented reasoning power in a lightweight terminal package.
+Gemma CLI is a high-performance, extensible **Agentic AI Station** designed for Google's **Gemma 4** model family. It brings a sophisticated, tool-aware agent directly into your PowerShell console, enabling AI-driven system administration, web research, physical computing, and professional image generation. Utilizing **MoE (Mixture of Experts)** architectures and advanced **Adversarial Agent** pipelines, it delivers unprecedented reasoning power in a lightweight terminal package. *Not in any way affiliated or endorsed by Google or Deepmind team.* 
 
 ---
 
