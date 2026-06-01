@@ -1,4 +1,4 @@
-﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # =========================================================================================
@@ -339,11 +339,11 @@ if ($scheme -eq "alternative") {
 # ====================== CONTEXT MODE INIT ======================
 $contextMode = if ($script:Settings.context_mode) { $script:Settings.context_mode } else { "standard" }
 if ($contextMode -eq "large") {
-    $script:CONTEXT_LIMIT = 128000
-    $script:TRIM_THRESHOLD = 60000
+    $script:CONTEXT_LIMIT = if ($script:Settings.large_context_limit) { [int]$script:Settings.large_context_limit } else { 128000 }
+    $script:TRIM_THRESHOLD = if ($script:Settings.large_trim_threshold) { [int]$script:Settings.large_trim_threshold } else { 60000 }
 } else {
-    $script:CONTEXT_LIMIT = 15000
-    $script:TRIM_THRESHOLD = 11000
+    $script:CONTEXT_LIMIT = if ($script:Settings.standard_context_limit) { [int]$script:Settings.standard_context_limit } else { 30000 }
+    $script:TRIM_THRESHOLD = if ($script:Settings.standard_trim_threshold) { [int]$script:Settings.standard_trim_threshold } else { 22000 }
 }
 
 # ====================== SPLASH ======================
@@ -381,7 +381,7 @@ $helpLines = @(
     "/exit              $ARR Quit"
 )
 
-Draw-Box $helpLines -Title "Gemma CLI v0.8.8 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width $DRAWBOX_WIDTH_SLIM -Color $script:Colors.ui_boxes
+Draw-Box $helpLines -Title "Gemma CLI v0.8.9 $BUL (C) 2026 SpdrByte Labs $BUL AGPL-3.0 License" -Width $DRAWBOX_WIDTH_SLIM -Color $script:Colors.ui_boxes
 
 Write-Host ""
 
@@ -687,16 +687,16 @@ while ($true) {
                     $endIdx = [math]::Min($startIdx + $pageSize - 1, $allTools.Count - 1)
                     $currentPageTools = $allTools[$startIdx..$endIdx]
 
-                    $toolOptions = $currentPageTools | ForEach-Object { 
+                    $toolOptions = @($currentPageTools | ForEach-Object { 
                         $meta = $script:TOOL_CACHE[$_.Name]
 
                         $inds = @()
-                        if ($meta.Interactive) { $inds += "⚠ " }
-                        if ($meta.RequiresKey) { $inds += "🔑" }
+                        if ($meta.Interactive) { $inds += [char]0x26A0 + " " }
+                        if ($meta.RequiresKey) { $inds += [char]::ConvertFromUtf32(0x1F511) }
                         $indStr = if ($inds.Count -gt 0) { " " + ($inds -join " ") } else { "" }
 
                         "$($meta.Icon) $($_.Name)$indStr ($($_.Status))" 
-                    }
+                    })
 
                     
                     $hasPrev = $pageIdx -gt 0
@@ -783,7 +783,11 @@ while ($true) {
             3 {
                 $currentMode = if ($script:Settings.context_mode) { $script:Settings.context_mode } else { "standard" }
                 $defaultIdx = if ($currentMode -eq "large") { 1 } else { 0 }
-                $modeChoice = Show-ArrowMenu -Options @("Standard (15k - Google API)", "Large (128k - Enterprise/Paid)") -Title "Select Context Mode" -Default $defaultIdx
+                $standardLimit = if ($script:Settings.standard_context_limit) { [int]$script:Settings.standard_context_limit } else { 30000 }
+                $largeLimit = if ($script:Settings.large_context_limit) { [int]$script:Settings.large_context_limit } else { 128000 }
+                $stdK = [int]($standardLimit / 1000)
+                $lrgK = [int]($largeLimit / 1000)
+                $modeChoice = Show-ArrowMenu -Options @("Standard ($($stdK)k - Google API)", "Large ($($lrgK)k - Enterprise/Paid)") -Title "Select Context Mode" -Default $defaultIdx
                 if ($modeChoice -ge 0) {
                     $script:Settings.context_mode = if ($modeChoice -eq 1) { "large" } else { "standard" }
                     $script:Settings | ConvertTo-Json | Set-Content -Path $settingsPath
