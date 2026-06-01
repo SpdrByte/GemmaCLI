@@ -1,4 +1,4 @@
-﻿# lib/Api.ps1 v0.1.2
+# lib/Api.ps1 v0.1.3
 # Responsibility: Manages interactions with the Google Gemini API, including Job management and error handling.
 # Handles the Start-Job logic for API calls.
 
@@ -236,10 +236,10 @@ function Invoke-GemmaApiWithRetry {
                 $tokenEst = 0
                 foreach ($turn in $historyRef.Value) {
                     foreach ($part in $turn.parts) {
-                        if ($part.text) { $tokenEst += [int]($part.text.Length / 4) }
+                        if ($part.text) { $tokenEst += [int]($part.text.Length / 3) }
                     }
                 }
-                $threshold = if ($script:TRIM_THRESHOLD) { $script:TRIM_THRESHOLD } else { 11000 }
+                $threshold = if ($script:TRIM_THRESHOLD) { $script:TRIM_THRESHOLD } else { 22000 }
                 if ($tokenEst -gt $threshold) {
                     if ($script:debugMode) { Write-Host " [Retry] Token estimate $tokenEst > $threshold - trimming before retry" -ForegroundColor DarkYellow }
                     $historyRef.Value = Trim-History -hist $historyRef.Value -tokenBudget $threshold
@@ -294,9 +294,9 @@ function Invoke-SingleTurnApi {
     # Detect if we are running inside a Start-Job (no interactive console)
     $isJob = ($null -ne $MyInvocation.MyCommand.ModuleName) -or ($host.Name -match "Server") -or ($null -eq [Console]::WindowWidth)
     
-    Start-Spinner -Label $spinnerLabel
+    if (-not $isJob) { Start-Spinner -Label $spinnerLabel }
     $resp = Invoke-ModelGeneration -uri $uri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
-    Stop-Spinner
+    if (-not $isJob) { Stop-Spinner }
 
     # --- Cascading Fallbacks ---
     if ($resp.apiError -and $backend -eq "gemini" -and ($resp.apiError -match "429|quota|RESOURCE_EXHAUSTED")) {
@@ -304,9 +304,9 @@ function Invoke-SingleTurnApi {
         $liteUri = Get-GeminiLiteUri
         if ($uri -ne $liteUri) {
             Write-Host " [Flash quota exceeded - falling back to Gemini Lite...]" -ForegroundColor Cyan
-            Start-Spinner -Label "Lite: $spinnerLabel"
+            if (-not $isJob) { Start-Spinner -Label "Lite: $spinnerLabel" }
             $resp = Invoke-ModelGeneration -uri $liteUri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
-            Stop-Spinner
+            if (-not $isJob) { Stop-Spinner }
         }
 
         # Tier 3: Gemma 12b (Final Backup)
@@ -314,9 +314,9 @@ function Invoke-SingleTurnApi {
             $gemmaId = Resolve-ModelId "gemma-heavy"
             $gemmaUri = "$($script:BASE_URI_BASE)/${gemmaId}:generateContent?key=$($script:API_KEY)"
             Write-Host " [Gemini Lite quota exceeded - falling back to Gemma 12b...]" -ForegroundColor Yellow
-            Start-Spinner -Label "Gemma: $spinnerLabel"
+            if (-not $isJob) { Start-Spinner -Label "Gemma: $spinnerLabel" }
             $resp = Invoke-ModelGeneration -uri $gemmaUri -contents $contents -gConfig $gConfig -skipCancelCheck $isJob -tools $tools -toolConfig $toolConfig
-            Stop-Spinner
+            if (-not $isJob) { Stop-Spinner }
         }
     }
 
