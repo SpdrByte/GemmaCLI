@@ -181,7 +181,7 @@ $ToolMeta = @{
     Category    = @("Gaming/Entertainment")
     Behavior    = "Stateful chess game. IMPORTANT: ALL moves — the player's AND yours — must be submitted via this tool. When the player states a move, call chess(action=move, move=<their_move>) FIRST, then play your reply with a second call."
     Description = "Full chess engine with Unicode board (♘ ♞ etc.), perfect legal-move validation, undo, and persistent state."
-    Keywords =  = @("chess", "game", "strategy", "entertainment", "puzzle")
+    Keywords    = @("chess", "game", "strategy", "entertainment", "puzzle")
     Parameters  = @{
         action = "'newgame', 'show', 'move', 'undo', 'status', or 'exportfen' (default: show)"
         move   = "The move to play (UCI e2e4 or SAN Nf3, O-O, e8=Q, etc.) — only used with action=move"
