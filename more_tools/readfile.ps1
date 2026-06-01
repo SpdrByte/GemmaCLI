@@ -1,5 +1,5 @@
 ﻿# ===============================================
-# GemmaCLI Tool - readfile.ps1 v1.1.0
+# GemmaCLI Tool - readfile.ps1 
 # Responsibility: Function to read file content + Metadata for self-registration.
 # Supports optional line range reading (start_line / end_line) for large files.
 # ===============================================
@@ -16,6 +16,12 @@ function Invoke-ReadFileTool {
 
     try {
         $fullPath = Resolve-Path -Path $file_path -ErrorAction Stop
+        $displayPath = $fullPath
+        if ($displayPath.Length -gt 20) {
+            $displayPath = "..." + $displayPath.Substring($displayPath.Length - 20)
+        }
+        Write-Output "readfile -> $displayPath"
+        
         if (-not (Test-Path $fullPath -PathType Leaf)) {
             return "ERROR: Path exists but is not a file: $file_path"
         }
@@ -132,6 +138,7 @@ function Invoke-ReadFileTool {
 # ── Standard metadata block for registration ─────────────────────────────────
 $ToolMeta = @{
     Name             = "readfile"
+    Version          = "v1.1.1"
     Icon             = "📖"
     RendersToConsole = $false
     Interactive      = $false
