@@ -1,5 +1,5 @@
-﻿# ===============================================
-# GemmaCLI Tool - chess.ps1 v1.1.1
+# ===============================================
+# GemmaCLI Tool - chess.ps1
 # Responsibility: Stateful chess game with perfect legal-move validation.
 # Uses Unicode pieces (♘ ♞ etc.) and python-chess for 100% correct rules.
 # ===============================================
@@ -98,7 +98,7 @@ def render_board(b):
         (chess.QUEEN,  False): 'Q', (chess.QUEEN,  True):  'q',
         (chess.KING,   False): 'K', (chess.KING,   True):  'k',
     }
-    s = "   a  b  c  d  e  f  g  h\n"
+    s = "  a  b  c  d  e  f  g  h\n"
     for rank in range(7, -1, -1):
         row = f"{rank+1} "
         for file in range(8):
@@ -132,12 +132,36 @@ print(result)
         Remove-Item $tempPy -Force -ErrorAction SilentlyContinue
 
         $lines = $output -join "`n"
-        $board = ($lines -split "`n" | ForEach-Object {
+        $processedLines = $lines -split "`n" | Where-Object { $_ -notmatch '^DEBUG:' } | ForEach-Object {
             if ($_ -match '^[1-8] ') {
-$_.Replace('.','░').Replace('#','█').Replace('P','♙').Replace('N','♘').Replace('B','♗').Replace('R','♖').Replace('Q','♕').Replace('K','♔').Replace('p','♟').Replace('n','♞').Replace('b','♝').Replace('r','♜').Replace('q','♛').Replace('k','♚')
+                $_.Replace('.','░').Replace('#','█').Replace('P','♙').Replace('N','♘').Replace('B','♗').Replace('R','♖').Replace('Q','♕').Replace('K','♔').Replace('p','♟').Replace('n','♞').Replace('b','♝').Replace('r','♜').Replace('q','♛').Replace('k','♚')
             } else { $_ }
-        }) -join "`n"
-        return "<code_block>`n$board`n</code_block>"
+        }
+
+        Write-Host ""
+        foreach ($line in $processedLines) {
+            if ($line -match '^[1-8]') {
+                Write-Host "  " -NoNewline
+                Write-Host $line.Substring(0, 2) -NoNewline -ForegroundColor Cyan
+                Write-Host $line.Substring(2) -ForegroundColor White
+            } elseif ($line -match '^ {3}[a-h]') {
+                Write-Host "     $line" -ForegroundColor DarkGray
+            } elseif (-not [string]::IsNullOrWhiteSpace($line)) {
+                Write-Host "  $line" -ForegroundColor Yellow
+            }
+        }
+        Write-Host ""
+
+        $resultMsg = ($processedLines | Where-Object { $_ -and $_ -notmatch '^ {3}[a-h]' -and $_ -notmatch '^[1-8]' } | Select-Object -Last 1)
+        $consoleSummary = if ($resultMsg) { $resultMsg.Trim() } else { "Board displayed." }
+        $instruction = switch ($action) {
+            "newgame" { "Board is rendered. Do NOT redraw it. Wait for the player to state their move. When they do, you MUST call chess(action=move, move=<their_move>) to register it into the engine BEFORE playing your own reply." }
+            "show"    { "Board is rendered. Do NOT redraw it. Wait for the player's move, then call chess(action=move, move=<their_move>) to register it." }
+            "move"    { "Board is rendered. Do NOT redraw it. If you just registered the player's move, now call chess(action=move, move=<your_reply>) to play your response. If you just played your own reply, acknowledge briefly and wait for the player." }
+            "undo"    { "Board is rendered after undo. Do NOT redraw it. Wait for the player's move." }
+            default   { "Board is rendered. Do NOT redraw it." }
+        }
+        return "CONSOLE::$consoleSummary::END_CONSOLE::{`"action`":`"$action`",`"move`":`"$move`"}`n→ INSTRUCTION: $instruction"
 
 
     }
@@ -151,12 +175,13 @@ $_.Replace('.','░').Replace('#','█').Replace('P','♙').Replace('N','♘').R
 $ToolMeta = @{
     Name        = "chess"
     Icon        = "♟️"
-    RendersToConsole = $false
+    RendersToConsole = $true
     Interactive      = $false
-    Version          = "1.1.1"
+    Version          = "1.1.2"
     Category    = @("Gaming/Entertainment")
-    Behavior    = "Stateful chess game. Always use this tool for any chess move so Gemma cannot play illegal moves."
+    Behavior    = "Stateful chess game. IMPORTANT: ALL moves — the player's AND yours — must be submitted via this tool. When the player states a move, call chess(action=move, move=<their_move>) FIRST, then play your reply with a second call."
     Description = "Full chess engine with Unicode board (♘ ♞ etc.), perfect legal-move validation, undo, and persistent state."
+    Keywords =  = @("chess", "game", "strategy", "entertainment", "puzzle")
     Parameters  = @{
         action = "'newgame', 'show', 'move', 'undo', 'status', or 'exportfen' (default: show)"
         move   = "The move to play (UCI e2e4 or SAN Nf3, O-O, e8=Q, etc.) — only used with action=move"
@@ -166,26 +191,19 @@ $ToolMeta = @{
     Execute     = { param($p) Invoke-ChessTool @p }
 
     ToolUseGuidanceMajor = @"
-          ALWAYS copy the board grid EXACTLY as returned, character by character, making only these substitutions:
-          . = ░   # = █   P=♙ N=♘ B=♗ R=♖ Q=♕ K=♔   p=♟ n=♞ b=♝ r=♜ q=♛ k=♚
-          Do NOT redraw or reinterpret the board. Copy every space, number, and letter preserving all alignment.
-          Row "8 .r.#n#.b.#q#.k.#b#.n.#r# 8" becomes "8 ░♜░█♞█░♝░█♛█░♚░█♝█░♞░█♜█ 8"
-          Example: .P. becomes ░♙░  and #n# becomes █♞█
-        - ALWAYS use this tool for chess. Never move pieces yourself.
-        - First call: action=newgame. Then action=move for each move.
-        - The tool will reject illegal moves and show legal alternatives.
-        - ALWAYS display the board to the user after every tool call.
-        - The board uses ASCII piece letters. When displaying to user, replace with Unicode icons:
-          P=♙ N=♘ B=♗ R=♖ Q=♕ K=♔  p=♟ n=♞ b=♝ r=♜ q=♛ k=♚
-          Light squares show ░░░, dark squares show ███. Keep the grid layout exactly as returned.
-        - You always play as BLACK unless otherwise indicated by user.
-        - Do not give up because you are having trouble making legal moves, keep trying.
+        - The board renders directly to the terminal. NEVER redraw it. NEVER use markdown tables. Acknowledge briefly.
+        - NEVER move pieces in your head or assume a move is registered — EVERY move (yours AND the player's) MUST go through this tool.
+        - Turn sequence (repeat every turn):
+            1. Player types their move → YOU call chess(action=move, move=<their move>) to register it.
+            2. Tool renders the updated board.
+            3. YOU call chess(action=move, move=<your response move>) to play your reply.
+            4. Tool renders the updated board. Acknowledge briefly and wait.
+        - You play as BLACK unless the user says otherwise.
+        - If a move is rejected, try a different legal move — do not give up.
 "@
     ToolUseGuidanceMinor = @"
-        - Show board: action=show
-        - Move: action=move + move=e2e4 (UCI) or Nf3 (SAN)
-        - Undo: action=undo
-        - New game: action=newgame
-        - Always render the board with Unicode icons after each move.
+        - EVERY move (player's and yours) must be submitted via action=move. Never skip this.
+        - Show board: action=show  |  New game: action=newgame  |  Undo: action=undo
+        - Do NOT draw the board yourself in any format.
 "@
 }
