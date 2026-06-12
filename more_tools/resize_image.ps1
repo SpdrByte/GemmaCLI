@@ -1,6 +1,7 @@
-﻿# ===============================================
-# GemmaCLI Tool - resize_image.ps1 v0.2.0
+# ===============================================
+# GemmaCLI Tool - resize_image.ps1 
 # Responsibility: Resizes an image to specific dimensions (stretching).
+# Supports both upscaling and downscaling.
 # ===============================================
 
 function Invoke-ResizeImageTool {
@@ -25,14 +26,20 @@ function Invoke-ResizeImageTool {
         
         $srcImage = [System.Drawing.Image]::FromFile((Resolve-Path $file_path))
         
+
+        # Ensure minimum dimensions are at least 1 to avoid instantiation errors
+        if ($width -lt 1) { $width = 1 }
+        if ($height -lt 1) { $height = 1 }
+
         # --- Perform Resize (Stretch) ---
         $bmp = [System.Drawing.Bitmap]::new($width, $height)
         $graphics = [System.Drawing.Graphics]::FromImage($bmp)
         
-        # High quality rendering settings
-        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-        $graphics.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-        $graphics.SmoothingMode      = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        # Pixel-perfect rendering settings (no smoothing, no dithering, no interpolation)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+        $graphics.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::None
+        $graphics.SmoothingMode      = [System.Drawing.Drawing2D.SmoothingMode]::None
+        $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::AssumeLinear
 
         # Draw source image into the full destination rectangle (stretching)
         $destRect = [System.Drawing.Rectangle]::new(0, 0, $width, $height)
@@ -71,11 +78,13 @@ function Invoke-ResizeImageTool {
 # --- Self-registration block ---
 $ToolMeta = @{
     Name        = "resize_image"
+    Version     = "v1.0.1"
     Icon        = "📐"
     RendersToConsole = $false
     Category    = @("Digital Media Production")
     Behavior    = "Use this tool to resize an image to specific dimensions. Supported formats: PNG, JPG, JPEG, and GIF. Does NOT support WEBP or HEIC. Note that this tool will stretch the image to fit the requested width and height exactly."
     Description = "Resizes/Stretches an image (PNG, JPG, GIF). Specify width and height."
+    Keywords    = @("resize", "image")
     Parameters  = @{
         file_path = "string - Full path to the image file."
         width     = "int - Target width in pixels."
